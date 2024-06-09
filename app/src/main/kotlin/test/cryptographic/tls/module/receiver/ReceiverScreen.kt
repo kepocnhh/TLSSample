@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,11 +12,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,63 +25,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.Closeable
-import java.net.Inet4Address
-import java.net.InetAddress
-import java.net.NetworkInterface
-import java.net.ServerSocket
-
-internal object ReceiverScreen {
-    sealed interface State {
-        data object Stopped : State
-        data object Starting : State
-        class Started(
-            val hostAddress: String,
-            val serverSocket: ServerSocket,
-        ) : State {
-            override fun toString(): String {
-                return "Started($hostAddress)"
-            }
-        }
-        class Stopping(val serverSocket: ServerSocket) : State {
-            override fun toString(): String {
-                return "Stopping(${serverSocket.hashCode()})"
-            }
-        }
-    }
-}
-
-private fun getInetAddress(): InetAddress {
-    return NetworkInterface
-        .getNetworkInterfaces()
-        .asSequence()
-        .flatMap { it.inetAddresses.asSequence() }
-//        .flatMap { ni -> ni.interfaceAddresses.map { it.address } }
-        .filterIsInstance<Inet4Address>()
-        .firstOrNull { !it.isLoopbackAddress }
-        ?: error("No addresses!")
-}
+import test.cryptographic.tls.util.NetworkUtil
+import test.cryptographic.tls.util.compose.BackHandler
 
 @Composable
 internal fun ReceiverScreen(
     onBack: () -> Unit,
 ) {
-    // todo back
+    BackHandler(block = onBack)
     val insets = WindowInsets.systemBars.asPaddingValues()
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White),
     ) {
-        val state = remember { mutableStateOf<ReceiverScreen.State>(ReceiverScreen.State.Stopped) }
+        val receiver = remember { Receiver() }
         DisposableEffect(Unit) {
             onDispose {
-                println("on dispose: ${state.value}") // todo
-                when (val socketState = state.value) {
-                    is ReceiverScreen.State.Started -> {
-                        state.value = ReceiverScreen.State.Stopping(serverSocket = socketState.serverSocket)
+                when (val state = receiver.state.value) {
+                    is Receiver.State.Started -> {
+                        if (!state.stopping) {
+                            receiver.stop()
+                        }
                     }
                     else -> {
                         // noop
@@ -90,74 +55,47 @@ internal fun ReceiverScreen(
                 }
             }
         }
-        LaunchedEffect(state.value) {
-            println("state: ${state.value}") // todo
-            when (val socketState = state.value) {
-                is ReceiverScreen.State.Started -> {
-                    withContext(Dispatchers.IO) {
-                        while (true) {
-                            val newState = state.value
-                            if (newState !is ReceiverScreen.State.Started) {
-                                println("new state: $newState") // todo
-                                break
-                            }
-                            try {
-                                socketState.serverSocket.accept().use { socket ->
-                                    // todo
-                                }
-                            } catch (e: Throwable) {
-                                println("socket accept error: $e") // todo
-                                if (state.value is ReceiverScreen.State.Stopping) break
-                                TODO("socket accept error: $e")
-                            }
-                        }
-                        state.value = ReceiverScreen.State.Stopped
-                    }
-                }
-                is ReceiverScreen.State.Starting -> {
-                    withContext(Dispatchers.IO) {
-                        runCatching {
-                            getInetAddress().hostAddress ?: TODO()
-                        }.mapCatching { hostAddress ->
-                            val portNumber = 40631 // todo
-                            ReceiverScreen.State.Started(
-                                serverSocket = ServerSocket(portNumber),
-                                hostAddress = hostAddress,
-                            )
-                        }
-                    }.fold(
-                        onSuccess = {
-                            state.value = it
-                        },
-                        onFailure = { error ->
-                            TODO("starting error: $error")
-                        },
-                    )
-                }
-                is ReceiverScreen.State.Stopping -> {
-                    withContext(Dispatchers.Default) {
-                        runCatching { socketState.serverSocket.close() }
-                    }
-                }
-                else -> {
-                    // noop
-                }
-            }
-        }
+        val state = receiver.state.collectAsState().value
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(insets),
         ) {
-            when (val socketState = state.value) {
-                is ReceiverScreen.State.Started -> {
-                    BasicText(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(64.dp)
-                            .wrapContentSize(),
-                        text = socketState.hostAddress,
-                    )
+            val hostState = remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(state) {
+                when (state) {
+                    is Receiver.State.Started -> {
+                        // todo address online
+                        withContext(Dispatchers.IO) {
+                            runCatching {
+                                NetworkUtil.getLocalAddress().hostAddress ?: TODO()
+                            }
+                        }.fold(
+                            onSuccess = { host ->
+                                hostState.value = host
+                            },
+                            onFailure = {
+                                TODO()
+                            },
+                        )
+                    }
+                    is Receiver.State.Stopped -> {
+                        hostState.value = null
+                    }
+                }
+            }
+            when (state) {
+                is Receiver.State.Started -> {
+                    val host = hostState.value
+                    if (host != null) {
+                        BasicText(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp)
+                                .wrapContentSize(),
+                            text = "$host:${state.portNumber}",
+                        )
+                    }
                 }
                 else -> {
                     // noop
@@ -168,33 +106,30 @@ internal fun ReceiverScreen(
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter),
             ) {
-                val enabled = when (state.value) {
-                    ReceiverScreen.State.Stopped -> true
-                    is ReceiverScreen.State.Started -> true
-                    else -> false
+                val enabled = when (state) {
+                    is Receiver.State.Stopped -> !state.starting
+                    is Receiver.State.Started -> !state.stopping
                 }
-                val text = when (state.value) {
-                    ReceiverScreen.State.Stopped -> "start"
-                    is ReceiverScreen.State.Started -> "stop"
-                    else -> "..."
+                val text = when (state) {
+                    is Receiver.State.Stopped -> "start"
+                    is Receiver.State.Started -> "stop"
                 }
+                val scope = rememberCoroutineScope()
                 BasicText(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(64.dp)
                         .clickable(enabled = enabled) {
-                            when (val socketState = state.value) {
-                                is ReceiverScreen.State.Started -> {
-                                    state.value =
-                                        ReceiverScreen.State.Stopping(serverSocket = socketState.serverSocket)
+                            when (state) {
+                                is Receiver.State.Stopped -> {
+                                    if (!state.starting) {
+                                        receiver.start(scope, Dispatchers.IO)
+                                    }
                                 }
-
-                                ReceiverScreen.State.Stopped -> {
-                                    state.value = ReceiverScreen.State.Starting
-                                }
-
-                                else -> {
-                                    // noop
+                                is Receiver.State.Started -> {
+                                    if (!state.stopping) {
+                                        receiver.stop()
+                                    }
                                 }
                             }
                         }

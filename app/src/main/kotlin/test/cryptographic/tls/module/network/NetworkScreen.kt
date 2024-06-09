@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import test.cryptographic.tls.util.compose.BackHandler
 import java.net.InetAddress
 import java.net.NetworkInterface
 
@@ -26,7 +27,7 @@ import java.net.NetworkInterface
 internal fun NetworkScreen(
     onBack: () -> Unit,
 ) {
-    // todo back
+    BackHandler(block = onBack)
     val insets = WindowInsets.systemBars.asPaddingValues()
     Box(
         modifier = Modifier
