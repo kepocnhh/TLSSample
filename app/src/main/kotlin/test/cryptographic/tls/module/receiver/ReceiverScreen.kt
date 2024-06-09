@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,8 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,11 +38,19 @@ internal object ReceiverScreen {
     sealed interface State {
         data object Stopped : State
         data object Starting : State
-        data class Started(
+        class Started(
             val hostAddress: String,
             val serverSocket: ServerSocket,
-        ) : State
-        data object Stopping : State
+        ) : State {
+            override fun toString(): String {
+                return "Started($hostAddress)"
+            }
+        }
+        class Stopping(val serverSocket: ServerSocket) : State {
+            override fun toString(): String {
+                return "Stopping(${serverSocket.hashCode()})"
+            }
+        }
     }
 }
 
@@ -48,6 +59,7 @@ private fun getInetAddress(): InetAddress {
         .getNetworkInterfaces()
         .asSequence()
         .flatMap { it.inetAddresses.asSequence() }
+//        .flatMap { ni -> ni.interfaceAddresses.map { it.address } }
         .filterIsInstance<Inet4Address>()
         .firstOrNull { !it.isLoopbackAddress }
         ?: error("No addresses!")
@@ -65,6 +77,19 @@ internal fun ReceiverScreen(
             .background(Color.White),
     ) {
         val state = remember { mutableStateOf<ReceiverScreen.State>(ReceiverScreen.State.Stopped) }
+        DisposableEffect(Unit) {
+            onDispose {
+                println("on dispose: ${state.value}") // todo
+                when (val socketState = state.value) {
+                    is ReceiverScreen.State.Started -> {
+                        state.value = ReceiverScreen.State.Stopping(serverSocket = socketState.serverSocket)
+                    }
+                    else -> {
+                        // noop
+                    }
+                }
+            }
+        }
         LaunchedEffect(state.value) {
             println("state: ${state.value}") // todo
             when (val socketState = state.value) {
@@ -83,11 +108,11 @@ internal fun ReceiverScreen(
                             } catch (e: Throwable) {
                                 println("socket accept error: $e") // todo
                                 if (state.value is ReceiverScreen.State.Stopping) break
-                                TODO()
+                                TODO("socket accept error: $e")
                             }
                         }
+                        state.value = ReceiverScreen.State.Stopped
                     }
-                    state.value = ReceiverScreen.State.Stopped
                 }
                 is ReceiverScreen.State.Starting -> {
                     withContext(Dispatchers.IO) {
@@ -108,6 +133,11 @@ internal fun ReceiverScreen(
                             TODO("starting error: $error")
                         },
                     )
+                }
+                is ReceiverScreen.State.Stopping -> {
+                    withContext(Dispatchers.Default) {
+                        runCatching { socketState.serverSocket.close() }
+                    }
                 }
                 else -> {
                     // noop
@@ -148,7 +178,6 @@ internal fun ReceiverScreen(
                     is ReceiverScreen.State.Started -> "stop"
                     else -> "..."
                 }
-                val scope = rememberCoroutineScope()
                 BasicText(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -156,16 +185,14 @@ internal fun ReceiverScreen(
                         .clickable(enabled = enabled) {
                             when (val socketState = state.value) {
                                 is ReceiverScreen.State.Started -> {
-                                    state.value = ReceiverScreen.State.Stopping
-                                    scope.launch {
-                                        withContext(Dispatchers.Default) {
-                                            runCatching { socketState.serverSocket.close() }
-                                        }
-                                    }
+                                    state.value =
+                                        ReceiverScreen.State.Stopping(serverSocket = socketState.serverSocket)
                                 }
+
                                 ReceiverScreen.State.Stopped -> {
                                     state.value = ReceiverScreen.State.Starting
                                 }
+
                                 else -> {
                                     // noop
                                 }

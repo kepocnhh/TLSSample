@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import test.cryptographic.tls.module.main.MainScreen
+import test.cryptographic.tls.module.network.NetworkScreen
 import test.cryptographic.tls.module.receiver.ReceiverScreen
 
 @Composable
@@ -20,6 +21,7 @@ internal fun RouterScreen() {
     ) {
         val state = remember { mutableStateOf<MainScreen.State?>(null) }
         when (state.value) {
+            MainScreen.State.Network -> NetworkScreen(onBack = {state.value = null})
             MainScreen.State.Receiver -> ReceiverScreen(onBack = {state.value = null})
             null -> MainScreen(onState = {state.value = it})
         }

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 
 internal object MainScreen {
     enum class State {
+        Network,
         Receiver,
     }
 }
