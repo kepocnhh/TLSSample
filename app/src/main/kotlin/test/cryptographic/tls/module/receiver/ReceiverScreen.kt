@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import test.cryptographic.tls.util.NetworkUtil
 import test.cryptographic.tls.util.compose.BackHandler
@@ -61,41 +62,48 @@ internal fun ReceiverScreen(
                 .fillMaxSize()
                 .padding(insets),
         ) {
-            val hostState = remember { mutableStateOf<String?>(null) }
-            LaunchedEffect(state) {
-                when (state) {
-                    is Receiver.State.Started -> {
-                        // todo address online
-                        withContext(Dispatchers.IO) {
-                            runCatching {
-                                NetworkUtil.getLocalAddress().hostAddress ?: TODO()
-                            }
-                        }.fold(
-                            onSuccess = { host ->
-                                hostState.value = host
-                            },
-                            onFailure = {
-                                TODO()
-                            },
-                        )
-                    }
-                    is Receiver.State.Stopped -> {
-                        hostState.value = null
-                    }
-                }
-            }
+//            val hostState = remember { mutableStateOf<String?>(null) }
+//            LaunchedEffect(state) {
+//                when (state) {
+//                    is Receiver.State.Started -> {
+//                        // todo address online
+//                        withContext(Dispatchers.IO) {
+//                            runCatching {
+//                                NetworkUtil.getLocalAddress().hostAddress ?: TODO()
+//                            }
+//                        }.fold(
+//                            onSuccess = { host ->
+//                                hostState.value = host
+//                            },
+//                            onFailure = {
+//                                TODO()
+//                            },
+//                        )
+//                    }
+//                    is Receiver.State.Stopped -> {
+//                        hostState.value = null
+//                    }
+//                }
+//            }
             when (state) {
                 is Receiver.State.Started -> {
-                    val host = hostState.value
-                    if (host != null) {
-                        BasicText(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(64.dp)
-                                .wrapContentSize(),
-                            text = "$host:${state.portNumber}",
-                        )
-                    }
+//                    val host = hostState.value
+//                    if (host != null) {
+//                        BasicText(
+//                            modifier = Modifier
+//                                .fillMaxWidth()
+//                                .height(64.dp)
+//                                .wrapContentSize(),
+//                            text = "$host:${state.portNumber}",
+//                        )
+//                    }
+                    BasicText(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .wrapContentSize(),
+                        text = "${state.host}:${state.port}",
+                    )
                 }
                 else -> {
                     // noop
@@ -123,12 +131,20 @@ internal fun ReceiverScreen(
                             when (state) {
                                 is Receiver.State.Stopped -> {
                                     if (!state.starting) {
-                                        receiver.start(scope, Dispatchers.IO)
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                receiver.start()
+                                            }
+                                        }
                                     }
                                 }
                                 is Receiver.State.Started -> {
                                     if (!state.stopping) {
-                                        receiver.stop()
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                receiver.stop()
+                                            }
+                                        }
                                     }
                                 }
                             }
