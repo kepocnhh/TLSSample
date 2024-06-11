@@ -66,13 +66,13 @@ internal fun TransmitterScreen(
                     }
                 }
             }
-            val savedAddress = logics.addressState.collectAsState().value
+            val savedAddressState = logics.addressState.collectAsState().value
             val addressState = remember { mutableStateOf("") }
-            LaunchedEffect(savedAddress) {
-                if (savedAddress == null) {
+            LaunchedEffect(savedAddressState) {
+                if (savedAddressState == null) {
                     logics.requestAddressState()
                 } else {
-                    addressState.value = savedAddress.toString()
+                    addressState.value = savedAddressState.url.toString()
                 }
             }
             Column(

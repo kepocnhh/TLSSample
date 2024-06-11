@@ -26,12 +26,14 @@ internal class TransmitterLogics(
     val addressState = _addressState.asStateFlow()
 
     private suspend fun sync(address: URL) {
+        logger.debug("sync: $address")
         withContext(injection.contexts.default) {
             runCatching {
                 injection.remotes(address).hello()
             }
         }.fold(
             onSuccess = {
+                logger.debug("sync success")
                 withContext(injection.contexts.default) {
                     injection.locals.address = address
                 }
@@ -48,7 +50,7 @@ internal class TransmitterLogics(
         withContext(injection.contexts.default) {
             runCatching {
                 val url = URL(spec)
-                val protocols = setOf("http")
+                val protocols = setOf("http", "https")
                 val protocol = url.protocol
                 if (!protocols.contains(protocol)) error("Protocol \"$protocol\" is not supported!")
                 url

@@ -15,16 +15,9 @@ import test.cryptographic.tls.module.app.Injection
 import test.cryptographic.tls.provider.Contexts
 import test.cryptographic.tls.provider.FinalLocals
 import test.cryptographic.tls.provider.FinalLoggers
-import test.cryptographic.tls.provider.Remotes
-import java.net.URL
+import test.cryptographic.tls.provider.FinalRemotes
 
 internal class App : Application() {
-    private class MockRemotes(private val address: URL) : Remotes {
-        override fun hello() {
-            TODO("MockRemotes($address):hello")
-        }
-    }
-
     override fun onCreate() {
         super.onCreate()
         _injection = Injection(
@@ -34,7 +27,7 @@ internal class App : Application() {
             ),
             loggers = FinalLoggers(),
             locals = FinalLocals(this),
-            remotes = ::MockRemotes,
+            remotes = ::FinalRemotes,
         )
     }
 
