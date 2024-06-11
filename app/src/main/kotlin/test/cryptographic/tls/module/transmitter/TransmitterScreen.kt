@@ -33,8 +33,13 @@ import test.cryptographic.tls.util.showToast
 internal fun TransmitterScreen(
     onBack: () -> Unit,
 ) {
-    BackHandler(block = onBack)
+    val context = LocalContext.current
     val insets = WindowInsets.systemBars.asPaddingValues()
+    val logics = App.logics<TransmitterLogics>()
+    val state = logics.states.collectAsState().value
+    BackHandler {
+        if (!logics.states.value.loading) onBack()
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -45,8 +50,6 @@ internal fun TransmitterScreen(
                 .fillMaxSize()
                 .padding(insets),
         ) {
-            val logics = App.logics<TransmitterLogics>()
-            val context = LocalContext.current
             LaunchedEffect(Unit) {
                 logics.events.collect { event ->
                     when (event) {
@@ -92,18 +95,21 @@ internal fun TransmitterScreen(
                         .fillMaxWidth()
                         .background(Color.White)
                         .padding(8.dp),
+                    readOnly = state.loading,
                     value = addressState.value,
                     onValueChange = { addressState.value = it },
                 )
             }
-            val enabled = addressState.value.isNotBlank()
             BasicText(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
                     .align(Alignment.BottomCenter)
-                    .clickable(enabled = enabled) {
-                        logics.sync(spec = addressState.value)
+                    .clickable(enabled = !state.loading) {
+                        val address = addressState.value
+                        if (address.isNotBlank()) {
+                            logics.sync(spec = addressState.value)
+                        }
                     }
                     .wrapContentSize(),
                 text = "sync",

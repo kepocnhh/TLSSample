@@ -5,6 +5,8 @@ import sp.kx.http.HttpResponse
 import sp.kx.http.HttpRouting
 import test.cryptographic.tls.BuildConfig
 import test.cryptographic.tls.module.app.Injection
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 internal class ReceiverRouting(
     private val injection: Injection,
@@ -15,7 +17,39 @@ internal class ReceiverRouting(
         "/version" to mapOf(
             "GET" to ::onGetVersion,
         ),
+        "/hello" to mapOf(
+            "GET" to ::onGetHello,
+        ),
+        "/delay" to mapOf(
+            "POST" to ::onPostDelay,
+        ),
     )
+
+    private fun onPostDelay(request: HttpRequest): HttpResponse {
+        val body = request.body ?: error("No body!")
+        val durationText = String(body)
+        val duration = durationText.toLongOrNull()?.milliseconds ?: error("Wrong duration!")
+        val supported = setOf(3.seconds)
+        if (!supported.contains(duration)) error("Duration $duration is not supported!")
+        Thread.sleep(duration.inWholeMilliseconds)
+        return HttpResponse(
+            version = "1.1",
+            code = 200,
+            message = "OK",
+            headers = emptyMap(),
+            body = null,
+        )
+    }
+
+    private fun onGetHello(request: HttpRequest): HttpResponse {
+        return HttpResponse(
+            version = "1.1",
+            code = 200,
+            message = "OK",
+            headers = emptyMap(),
+            body = null,
+        )
+    }
 
     private fun onGetVersion(request: HttpRequest): HttpResponse {
         return HttpResponse(
