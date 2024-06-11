@@ -6,6 +6,7 @@ import sp.gx.core.getByName
 repositories {
     google()
     mavenCentral()
+    maven("https://s01.oss.sonatype.org/content/repositories/snapshots")
 }
 
 plugins {
@@ -91,4 +92,6 @@ androidComponents.onVariants { variant ->
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation(compose.foundation)
+    implementation("com.github.kepocnhh:HttpReceiver:0.0.1u-SNAPSHOT")
+    implementation("com.github.kepocnhh:Logics:0.1.3-SNAPSHOT")
 }

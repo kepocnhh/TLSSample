@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import sp.kx.http.HttpReceiver
+import test.cryptographic.tls.App
 import test.cryptographic.tls.util.NetworkUtil
 import test.cryptographic.tls.util.compose.BackHandler
 
@@ -36,67 +38,21 @@ internal fun ReceiverScreen(
 ) {
     BackHandler(block = onBack)
     val insets = WindowInsets.systemBars.asPaddingValues()
+//    val logger = remember { App.injection.loggers.create("[Receiver|Screen]") }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White),
     ) {
-        val receiver = remember { Receiver() }
-        DisposableEffect(Unit) {
-            onDispose {
-                when (val state = receiver.state.value) {
-                    is Receiver.State.Started -> {
-                        if (!state.stopping) {
-                            receiver.stop()
-                        }
-                    }
-                    else -> {
-                        // noop
-                    }
-                }
-            }
-        }
-        val state = receiver.state.collectAsState().value
+        val logics = App.logics<ReceiverLogics>()
+        val state = logics.states.collectAsState().value
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(insets),
         ) {
-//            val hostState = remember { mutableStateOf<String?>(null) }
-//            LaunchedEffect(state) {
-//                when (state) {
-//                    is Receiver.State.Started -> {
-//                        // todo address online
-//                        withContext(Dispatchers.IO) {
-//                            runCatching {
-//                                NetworkUtil.getLocalAddress().hostAddress ?: TODO()
-//                            }
-//                        }.fold(
-//                            onSuccess = { host ->
-//                                hostState.value = host
-//                            },
-//                            onFailure = {
-//                                TODO()
-//                            },
-//                        )
-//                    }
-//                    is Receiver.State.Stopped -> {
-//                        hostState.value = null
-//                    }
-//                }
-//            }
             when (state) {
-                is Receiver.State.Started -> {
-//                    val host = hostState.value
-//                    if (host != null) {
-//                        BasicText(
-//                            modifier = Modifier
-//                                .fillMaxWidth()
-//                                .height(64.dp)
-//                                .wrapContentSize(),
-//                            text = "$host:${state.portNumber}",
-//                        )
-//                    }
+                is HttpReceiver.State.Started -> {
                     BasicText(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -115,36 +71,27 @@ internal fun ReceiverScreen(
                     .align(Alignment.BottomCenter),
             ) {
                 val enabled = when (state) {
-                    is Receiver.State.Stopped -> !state.starting
-                    is Receiver.State.Started -> !state.stopping
+                    is HttpReceiver.State.Stopped -> !state.starting
+                    is HttpReceiver.State.Started -> !state.stopping
                 }
                 val text = when (state) {
-                    is Receiver.State.Stopped -> "start"
-                    is Receiver.State.Started -> "stop"
+                    is HttpReceiver.State.Stopped -> "start"
+                    is HttpReceiver.State.Started -> "stop"
                 }
-                val scope = rememberCoroutineScope()
                 BasicText(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(64.dp)
                         .clickable(enabled = enabled) {
                             when (state) {
-                                is Receiver.State.Stopped -> {
+                                is HttpReceiver.State.Stopped -> {
                                     if (!state.starting) {
-                                        scope.launch {
-                                            withContext(Dispatchers.IO) {
-                                                receiver.start()
-                                            }
-                                        }
+                                        logics.start()
                                     }
                                 }
-                                is Receiver.State.Started -> {
+                                is HttpReceiver.State.Started -> {
                                     if (!state.stopping) {
-                                        scope.launch {
-                                            withContext(Dispatchers.IO) {
-                                                receiver.stop()
-                                            }
-                                        }
+                                        logics.stop()
                                     }
                                 }
                             }
