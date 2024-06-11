@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import test.cryptographic.tls.module.main.MainScreen
 import test.cryptographic.tls.module.network.NetworkScreen
 import test.cryptographic.tls.module.receiver.ReceiverScreen
+import test.cryptographic.tls.module.transmitter.TransmitterScreen
 
 @Composable
 internal fun RouterScreen() {
@@ -23,6 +24,7 @@ internal fun RouterScreen() {
         when (state.value) {
             MainScreen.State.Network -> NetworkScreen(onBack = {state.value = null})
             MainScreen.State.Receiver -> ReceiverScreen(onBack = {state.value = null})
+            MainScreen.State.Transmitter -> TransmitterScreen(onBack = {state.value = null})
             null -> MainScreen(onState = {state.value = it})
         }
     }

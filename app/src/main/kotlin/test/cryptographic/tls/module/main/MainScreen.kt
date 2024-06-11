@@ -19,6 +19,7 @@ internal object MainScreen {
     enum class State {
         Network,
         Receiver,
+        Transmitter,
     }
 }
 

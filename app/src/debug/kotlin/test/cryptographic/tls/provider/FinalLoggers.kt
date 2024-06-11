@@ -14,4 +14,8 @@ private class LogcatLogger(
     override fun debug(message: String) {
         Log.d(tag, message)
     }
+
+    override fun warning(message: String) {
+        Log.w(tag, message)
+    }
 }
