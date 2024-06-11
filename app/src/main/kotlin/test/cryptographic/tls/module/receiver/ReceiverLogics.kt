@@ -1,7 +1,6 @@
 package test.cryptographic.tls.module.receiver
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sp.kx.http.HttpReceiver
 import sp.kx.logics.Logics
@@ -17,7 +16,7 @@ internal class ReceiverLogics private constructor(
         "receiver" to Closeable { receiver.stop() },
     ),
 ) {
-    constructor(injection: Injection) : this(injection, HttpReceiver(ReceiverRouting()))
+    constructor(injection: Injection) : this(injection, HttpReceiver(ReceiverRouting(injection)))
 
     private val logger = injection.loggers.create("[Receiver]")
 
@@ -25,7 +24,7 @@ internal class ReceiverLogics private constructor(
 
     fun start() = launch {
         logger.debug("starting...")
-        launch(Dispatchers.Default) {
+        withContext(Dispatchers.Default) {
             val port = 40631 // todo
             logger.debug("starting: $port")
             receiver.start(port = port)
