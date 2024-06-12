@@ -2,9 +2,9 @@ package test.cryptographic.tls.module.transmitter
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,8 +58,8 @@ internal fun TransmitterScreen(
                         }
                         is TransmitterLogics.Event.OnSync -> {
                             event.result.fold(
-                                onSuccess = {
-                                    context.showToast("sync success")
+                                onSuccess = { message ->
+                                    context.showToast("sync success: $message")
                                 },
                                 onFailure = { error ->
                                     context.showToast("sync error: $error")
@@ -78,26 +78,40 @@ internal fun TransmitterScreen(
                     addressState.value = savedAddressState.url.toString()
                 }
             }
+            val messageState = remember { mutableStateOf("") }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color.LightGray)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .align(Alignment.Center),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 BasicText(
                     modifier = Modifier,
                     text = "address",
                 )
-                Spacer(modifier = Modifier.height(8.dp))
                 BasicTextField(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White)
                         .padding(8.dp),
-                    readOnly = state.loading,
+                    enabled = !state.loading,
                     value = addressState.value,
                     onValueChange = { addressState.value = it },
+                )
+                BasicText(
+                    modifier = Modifier,
+                    text = "message",
+                )
+                BasicTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(8.dp),
+                    enabled = !state.loading,
+                    value = messageState.value,
+                    onValueChange = { messageState.value = it },
                 )
             }
             BasicText(
@@ -107,8 +121,12 @@ internal fun TransmitterScreen(
                     .align(Alignment.BottomCenter)
                     .clickable(enabled = !state.loading) {
                         val address = addressState.value
-                        if (address.isNotBlank()) {
-                            logics.sync(spec = addressState.value)
+                        val message = messageState.value
+                        if (address.isNotBlank() && message.isNotBlank()) {
+                            logics.sync(
+                                spec = addressState.value,
+                                message = message,
+                            )
                         }
                     }
                     .wrapContentSize(),

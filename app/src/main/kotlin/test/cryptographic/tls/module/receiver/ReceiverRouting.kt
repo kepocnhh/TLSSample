@@ -23,7 +23,24 @@ internal class ReceiverRouting(
         "/delay" to mapOf(
             "POST" to ::onPostDelay,
         ),
+        "/double" to mapOf(
+            "POST" to ::onPostDouble,
+        ),
     )
+
+    private fun onPostDouble(request: HttpRequest): HttpResponse {
+        val body = request.body ?: error("No body!")
+        val numberText = String(body)
+        val number = numberText.toIntOrNull() ?: error("Wrong number!")
+        if (number !in 1..128) TODO()
+        return HttpResponse(
+            version = "1.1",
+            code = 200,
+            message = "OK",
+            headers = emptyMap(),
+            body = (number * 2).toString().toByteArray(),
+        )
+    }
 
     private fun onPostDelay(request: HttpRequest): HttpResponse {
         val body = request.body ?: error("No body!")

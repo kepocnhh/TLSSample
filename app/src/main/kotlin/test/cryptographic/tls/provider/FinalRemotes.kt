@@ -40,6 +40,22 @@ internal class FinalRemotes(
         }
     }
 
+    override fun double(number: Int): Int {
+        val request = Request.Builder()
+            .url(URL(address, "double"))
+            .method("POST", number.toString().toRequestBody())
+            .build()
+        client.newCall(request).execute().use { response ->
+            when (response.code) {
+                200 -> {
+                    val body = response.body ?: error("No body!")
+                    return body.string().toInt()
+                }
+                else -> error("Unknown code: ${response.code}!")
+            }
+        }
+    }
+
     companion object {
         private val client = OkHttpClient.Builder()
             .callTimeout(5, TimeUnit.SECONDS)

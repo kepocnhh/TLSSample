@@ -14,7 +14,7 @@ internal class TransmitterLogics(
     private val injection: Injection,
 ) : Logics(injection.contexts.main) {
     sealed interface Event {
-        class OnSync(val result: Result<Unit>) : Event
+        class OnSync(val result: Result<String>) : Event
         class OnAddressError(val error: Throwable) : Event
     }
 
@@ -30,19 +30,20 @@ internal class TransmitterLogics(
     private val _addressState = MutableStateFlow<AddressState?>(null)
     val addressState = _addressState.asStateFlow()
 
-    private suspend fun sync(address: URL) {
+    private suspend fun sync(address: URL, message: String) {
         logger.debug("sync: $address")
         withContext(injection.contexts.default) {
             runCatching {
-                injection.remotes(address).delay(3.seconds)
+                val number = message.toInt()
+                injection.remotes(address).double(number = number)
             }
         }.fold(
-            onSuccess = {
-                logger.debug("sync success")
+            onSuccess = { number ->
+                logger.debug("sync success: $number")
                 withContext(injection.contexts.default) {
                     injection.locals.address = address
                 }
-                _events.emit(Event.OnSync(Result.success(Unit)))
+                _events.emit(Event.OnSync(Result.success("$message * 2 = $number")))
             },
             onFailure = { error ->
                 logger.warning("sync error: $error")
@@ -51,7 +52,10 @@ internal class TransmitterLogics(
         )
     }
 
-    fun sync(spec: String) = launch {
+    fun sync(
+        spec: String,
+        message: String,
+    ) = launch {
         _states.value = State(loading = true)
         withContext(injection.contexts.default) {
             runCatching {
@@ -67,7 +71,7 @@ internal class TransmitterLogics(
             }
         }.fold(
             onSuccess = { address ->
-                sync(address = address)
+                sync(address = address, message = message)
             },
             onFailure = { error ->
                 logger.warning("url parse error: $error")
