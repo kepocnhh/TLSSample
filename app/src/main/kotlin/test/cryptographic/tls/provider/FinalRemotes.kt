@@ -3,12 +3,14 @@ package test.cryptographic.tls.provider
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import test.cryptographic.tls.entity.StartSessionRequest
 import java.net.URL
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 
 internal class FinalRemotes(
     private val address: URL,
+    private val serializer: Serializer,
 ) : Remotes {
     override fun hello() {
         val request = Request.Builder()
@@ -50,6 +52,23 @@ internal class FinalRemotes(
                 200 -> {
                     val body = response.body ?: error("No body!")
                     return body.string().toInt()
+                }
+                else -> error("Unknown code: ${response.code}!")
+            }
+        }
+    }
+
+    override fun startSession(request: StartSessionRequest): ByteArray {
+        client.newCall(
+            request = Request.Builder()
+                .url(URL(address, "session/start"))
+                .method("POST", serializer.startSessionRequest.encode(request).toRequestBody())
+                .build(),
+        ).execute().use { response ->
+            when (response.code) {
+                200 -> {
+                    val body = response.body ?: error("No body!")
+                    return body.bytes()
                 }
                 else -> error("Unknown code: ${response.code}!")
             }

@@ -16,18 +16,30 @@ import test.cryptographic.tls.provider.Contexts
 import test.cryptographic.tls.provider.FinalLocals
 import test.cryptographic.tls.provider.FinalLoggers
 import test.cryptographic.tls.provider.FinalRemotes
+import test.cryptographic.tls.provider.FinalSerializer
+import test.cryptographic.tls.provider.Serializer
 
 internal class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        val serializer: Serializer = FinalSerializer()
         _injection = Injection(
             contexts = Contexts(
                 main = Dispatchers.Main,
                 default = Dispatchers.Default,
             ),
             loggers = FinalLoggers(),
-            locals = FinalLocals(this),
-            remotes = ::FinalRemotes,
+            locals = FinalLocals(
+                context = this,
+                serializer = serializer,
+            ),
+            remotes = { address ->
+                FinalRemotes(
+                    address = address,
+                    serializer = serializer,
+                )
+            },
+            serializer = FinalSerializer(),
         )
     }
 
