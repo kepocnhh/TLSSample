@@ -3,7 +3,7 @@ package test.cryptographic.tls.provider
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import test.cryptographic.tls.entity.StartSessionRequest
+import test.cryptographic.tls.entity.SessionStartRequest
 import java.net.URL
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
@@ -58,11 +58,11 @@ internal class FinalRemotes(
         }
     }
 
-    override fun startSession(request: StartSessionRequest): ByteArray {
+    override fun sessionStart(request: SessionStartRequest): ByteArray {
         client.newCall(
             request = Request.Builder()
                 .url(URL(address, "session/start"))
-                .method("POST", serializer.startSessionRequest.encode(request).toRequestBody())
+                .method("POST", serializer.sessionStartRequest.encode(request).toRequestBody())
                 .build(),
         ).execute().use { response ->
             when (response.code) {

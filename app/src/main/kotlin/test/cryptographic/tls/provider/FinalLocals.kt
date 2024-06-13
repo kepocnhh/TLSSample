@@ -2,11 +2,8 @@ package test.cryptographic.tls.provider
 
 import android.content.Context
 import test.cryptographic.tls.BuildConfig
-import test.cryptographic.tls.entity.SecureConnection
+import test.cryptographic.tls.entity.Keys
 import java.net.URL
-import java.security.KeyFactory
-import java.security.PublicKey
-import java.security.spec.X509EncodedKeySpec
 
 internal class FinalLocals(
     context: Context,
@@ -27,31 +24,16 @@ internal class FinalLocals(
             }
         }
 
-    override var publicKey: PublicKey?
+    override var keys: Keys?
         get() {
-            val encoded = prefs.getString("publicKey", null) ?: return null
-            val keyFactory = KeyFactory.getInstance("RSA")
-            val keySpec = X509EncodedKeySpec(encoded.toByteArray())
-            return keyFactory.generatePublic(keySpec)
+            val text = prefs.getString("keys", null) ?: return null
+            return serializer.keys.decode(text.toByteArray())
         }
         set(value) {
-            if (value == null) {
-                prefs.edit().remove("publicKey").commit()
+            if (value?.toString() == null) {
+                prefs.edit().remove("keys").commit()
             } else {
-                prefs.edit().putString("publicKey", String(value.encoded)).commit()
-            }
-        }
-
-    override var secureConnection: SecureConnection?
-        get() {
-            val value = prefs.getString("secureConnection", null) ?: return null
-            return serializer.secureConnection.decode(value.toByteArray())
-        }
-        set(value) {
-            if (value == null) {
-                prefs.edit().remove("secureConnection").commit()
-            } else {
-                prefs.edit().putString("secureConnection", String(serializer.secureConnection.encode(value))).commit()
+                prefs.edit().putString("keys", String(serializer.keys.encode(value))).commit()
             }
         }
 }

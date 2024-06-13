@@ -18,6 +18,7 @@ import test.cryptographic.tls.provider.FinalLoggers
 import test.cryptographic.tls.provider.FinalRemotes
 import test.cryptographic.tls.provider.FinalSerializer
 import test.cryptographic.tls.provider.Serializer
+import test.cryptographic.tls.provider.Sessions
 
 internal class App : Application() {
     override fun onCreate() {
@@ -40,6 +41,7 @@ internal class App : Application() {
                 )
             },
             serializer = FinalSerializer(),
+            sessions = Sessions(),
         )
     }
 

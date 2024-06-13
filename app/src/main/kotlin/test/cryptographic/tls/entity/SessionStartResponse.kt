@@ -4,13 +4,13 @@ import java.security.PublicKey
 import java.util.Objects
 import java.util.UUID
 
-internal class StartSessionResponse(
+internal class SessionStartResponse(
     val publicKey: PublicKey,
     val sessionId: UUID,
 ) {
     override fun equals(other: Any?): Boolean {
         return when (other) {
-            is StartSessionResponse -> {
+            is SessionStartResponse -> {
                 other.publicKey.encoded.contentEquals(publicKey.encoded) && other.sessionId == sessionId
             }
             else -> false

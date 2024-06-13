@@ -1,9 +1,10 @@
 package test.cryptographic.tls.provider
 
 import org.json.JSONObject
+import test.cryptographic.tls.entity.Keys
 import test.cryptographic.tls.entity.SecureConnection
-import test.cryptographic.tls.entity.StartSessionRequest
-import test.cryptographic.tls.entity.StartSessionResponse
+import test.cryptographic.tls.entity.SessionStartRequest
+import test.cryptographic.tls.entity.SessionStartResponse
 import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
 import java.util.UUID
@@ -20,23 +21,33 @@ internal class FinalSerializer : Serializer {
         }
     }
 
-    override val startSessionRequest = object : Transformer<StartSessionRequest, ByteArray> {
-        override fun encode(decoded: StartSessionRequest): ByteArray {
+    override val sessionStartRequest = object : Transformer<SessionStartRequest, ByteArray> {
+        override fun encode(decoded: SessionStartRequest): ByteArray {
             return decoded.toJSONObject().toString().toByteArray()
         }
 
-        override fun decode(encoded: ByteArray): StartSessionRequest {
-            return JSONObject(String(encoded)).toStartSessionRequest()
+        override fun decode(encoded: ByteArray): SessionStartRequest {
+            return JSONObject(String(encoded)).toSessionStartRequest()
         }
     }
 
-    override val startSessionResponse = object : Transformer<StartSessionResponse, ByteArray> {
-        override fun encode(decoded: StartSessionResponse): ByteArray {
+    override val sessionStartResponse = object : Transformer<SessionStartResponse, ByteArray> {
+        override fun encode(decoded: SessionStartResponse): ByteArray {
             return decoded.toJSONObject().toString().toByteArray()
         }
 
-        override fun decode(encoded: ByteArray): StartSessionResponse {
-            return JSONObject(String(encoded)).toStartSessionResponse()
+        override fun decode(encoded: ByteArray): SessionStartResponse {
+            return JSONObject(String(encoded)).toSessionStartResponse()
+        }
+    }
+
+    override val keys = object : Transformer<Keys, ByteArray> {
+        override fun encode(decoded: Keys): ByteArray {
+            return decoded.toJSONObject().toString().toByteArray()
+        }
+
+        override fun decode(encoded: ByteArray): Keys {
+            return JSONObject(String(encoded)).toKeys()
         }
     }
 
@@ -58,31 +69,46 @@ internal class FinalSerializer : Serializer {
             )
         }
 
-        private fun StartSessionRequest.toJSONObject(): JSONObject {
+        private fun SessionStartRequest.toJSONObject(): JSONObject {
             return JSONObject()
                 .put("publicKey", String(publicKey.encoded))
         }
 
-        private fun JSONObject.toStartSessionRequest(): StartSessionRequest {
+        private fun JSONObject.toSessionStartRequest(): SessionStartRequest {
             val keyFactory = KeyFactory.getInstance("RSA")
             val keySpec = X509EncodedKeySpec(getString("publicKey").toByteArray())
-            return StartSessionRequest(
+            return SessionStartRequest(
                 publicKey = keyFactory.generatePublic(keySpec),
             )
         }
 
-        private fun StartSessionResponse.toJSONObject(): JSONObject {
+        private fun SessionStartResponse.toJSONObject(): JSONObject {
             return JSONObject()
                 .put("sessionId", sessionId.toString())
                 .put("publicKey", String(publicKey.encoded))
         }
 
-        private fun JSONObject.toStartSessionResponse(): StartSessionResponse {
+        private fun JSONObject.toSessionStartResponse(): SessionStartResponse {
             val keyFactory = KeyFactory.getInstance("RSA")
             val keySpec = X509EncodedKeySpec(getString("publicKey").toByteArray())
-            return StartSessionResponse(
+            return SessionStartResponse(
                 sessionId = UUID.fromString(getString("sessionId")),
                 publicKey = keyFactory.generatePublic(keySpec),
+            )
+        }
+
+        private fun Keys.toJSONObject(): JSONObject {
+            return JSONObject()
+                .put("publicKey", String(publicKey.encoded))
+                .put("encryptedPrivateKey", String(encryptedPrivateKey))
+        }
+
+        private fun JSONObject.toKeys(): Keys {
+            val keyFactory = KeyFactory.getInstance("RSA")
+            val keySpec = X509EncodedKeySpec(getString("publicKey").toByteArray())
+            return Keys(
+                publicKey = keyFactory.generatePublic(keySpec),
+                encryptedPrivateKey = getString("encryptedPrivateKey").toByteArray(),
             )
         }
     }

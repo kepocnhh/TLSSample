@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import java.security.PublicKey
 
 internal object MainScreen {
     enum class State {
@@ -25,7 +26,9 @@ internal object MainScreen {
 
 @Composable
 internal fun MainScreen(
+    publicKey: PublicKey,
     onState: (MainScreen.State) -> Unit,
+    onLock: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -37,6 +40,7 @@ internal fun MainScreen(
                 .fillMaxWidth()
                 .align(Alignment.Center),
         ) {
+            // todo public hash
             MainScreen.State.entries.forEach { state ->
                 BasicText(
                     modifier = Modifier
@@ -49,6 +53,14 @@ internal fun MainScreen(
                     text = state.name,
                 )
             }
+            BasicText(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .clickable(onClick = onLock)
+                    .wrapContentSize(),
+                text = "Lock",
+            )
         }
     }
 }

@@ -5,7 +5,7 @@ import sp.kx.http.HttpResponse
 import sp.kx.http.HttpRouting
 import test.cryptographic.tls.BuildConfig
 import test.cryptographic.tls.entity.SecureConnection
-import test.cryptographic.tls.entity.StartSessionResponse
+import test.cryptographic.tls.entity.SessionStartResponse
 import test.cryptographic.tls.module.app.Injection
 import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
@@ -38,7 +38,8 @@ internal class ReceiverRouting(
     )
 
     private fun onPostSessionStart(request: HttpRequest): HttpResponse {
-        val oldConnection = injection.locals.secureConnection
+        val sessions = injection.sessions ?: TODO()
+        val oldConnection = sessions.secureConnection
         val now = System.currentTimeMillis().milliseconds
         if (oldConnection != null) {
             if (oldConnection.expires > now) {
@@ -50,7 +51,7 @@ internal class ReceiverRouting(
                     body = "todo".toByteArray(),
                 )
             }
-            injection.locals.secureConnection = null
+            sessions.secureConnection = null
         }
         val body = request.body ?: return HttpResponse(
             version = "1.1",
@@ -63,21 +64,22 @@ internal class ReceiverRouting(
         val keySpec = X509EncodedKeySpec(body)
         val publicKey = keyFactory.generatePublic(keySpec)
         val sessionId = UUID.randomUUID()
-        injection.locals.secureConnection = SecureConnection(
+        sessions.secureConnection = SecureConnection(
             sessionId = sessionId,
             expires = now + 1.minutes,
             publicKey = publicKey,
         )
-        val response = StartSessionResponse(
+        val keys = injection.locals.keys ?: TODO()
+        val response = SessionStartResponse(
             sessionId = sessionId,
-            publicKey = injection.locals.publicKey ?: TODO(),
+            publicKey = keys.publicKey,
         )
         return HttpResponse(
             version = "1.1",
             code = 200,
             message = "OK",
             headers = emptyMap(),
-            body = injection.serializer.startSessionResponse.encode(response),
+            body = injection.serializer.sessionStartResponse.encode(response),
         )
     }
 
