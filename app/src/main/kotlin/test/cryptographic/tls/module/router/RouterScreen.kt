@@ -69,6 +69,9 @@ internal fun RouterScreen() {
                 onEnter = { privateKey ->
                     logics.enter(privateKey = privateKey)
                 },
+                onExit = {
+                     logics.exit()
+                },
             )
             null -> {
                 // noop

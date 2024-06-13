@@ -2,8 +2,10 @@ package test.cryptographic.tls.provider
 
 import java.security.KeyFactory
 import java.security.MessageDigest
+import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.Security
+import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import javax.crypto.Cipher
@@ -26,10 +28,22 @@ internal class FinalSecrets : Secrets {
         return keyFactory.generatePublic(keySpec)
     }
 
+    override fun toPrivateKey(encoded: ByteArray): PrivateKey {
+        val keyFactory = KeyFactory.getInstance("RSA")
+        val keySpec = PKCS8EncodedKeySpec(encoded)
+        return keyFactory.generatePrivate(keySpec)
+    }
+
     override fun encrypt(secretKey: SecretKey, decrypted: ByteArray): ByteArray {
         val cipher = Cipher.getInstance("AES")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
         return cipher.doFinal(decrypted)
+    }
+
+    override fun decrypt(secretKey: SecretKey, encrypted: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("AES")
+        cipher.init(Cipher.DECRYPT_MODE, secretKey)
+        return cipher.doFinal(encrypted)
     }
 
     override fun hash(bytes: ByteArray): String {
