@@ -11,6 +11,16 @@ internal class FinalLocals(
 ) : Locals {
     private val prefs = context.getSharedPreferences(BuildConfig.APPLICATION_ID, Context.MODE_PRIVATE)
 
+    init {
+        val version = prefs.getInt("version", -1)
+        if (version < VERSION) {
+            prefs.edit()
+                .clear()
+                .putInt("version", VERSION)
+                .commit()
+        }
+    }
+
     override var address: URL?
         get() {
             val spec = prefs.getString("address", null) ?: return null
@@ -36,4 +46,8 @@ internal class FinalLocals(
                 prefs.edit().putString("keys", String(serializer.keys.encode(value))).commit()
             }
         }
+
+    companion object {
+        const val VERSION = 1
+    }
 }

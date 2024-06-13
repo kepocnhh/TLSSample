@@ -60,7 +60,11 @@ internal fun RouterScreen() {
                     logics.lock()
                 },
             )
-            RouterLogics.State.NoKeys -> AuthScreen()
+            RouterLogics.State.NoKeys -> AuthScreen(
+                onAuth = { keys, privateKey ->
+                    logics.auth(keys = keys, privateKey = privateKey)
+                },
+            )
             is RouterLogics.State.Unauthorized -> EnterScreen(
                 onEnter = { privateKey ->
                     logics.enter(privateKey = privateKey)

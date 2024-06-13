@@ -29,13 +29,13 @@ internal class RouterLogics(
         if (keys == null) {
             _states.value = State.NoKeys
         } else {
-            val sessions = withContext(injection.contexts.default) {
-                injection.sessions
+            val authorized = withContext(injection.contexts.default) {
+                injection.sessions.privateKey != null
             }
-            if (sessions == null) {
-                _states.value = State.Unauthorized(publicKey = keys.publicKey)
-            } else {
+            if (authorized) {
                 _states.value = State.Authorized(publicKey = keys.publicKey)
+            } else {
+                _states.value = State.Unauthorized(publicKey = keys.publicKey)
             }
         }
     }

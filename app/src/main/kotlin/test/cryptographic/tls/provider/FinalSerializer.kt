@@ -10,7 +10,9 @@ import java.security.spec.X509EncodedKeySpec
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 
-internal class FinalSerializer : Serializer {
+internal class FinalSerializer(
+    private val secrets: Secrets,
+) : Serializer {
     override val secureConnection = object : Transformer<SecureConnection, ByteArray> {
         override fun encode(decoded: SecureConnection): ByteArray {
             return decoded.toJSONObject().toString().toByteArray()
@@ -49,6 +51,19 @@ internal class FinalSerializer : Serializer {
         override fun decode(encoded: ByteArray): Keys {
             return JSONObject(String(encoded)).toKeys()
         }
+    }
+
+    private fun Keys.toJSONObject(): JSONObject {
+        return JSONObject()
+            .put("publicKey", secrets.base64(publicKey.encoded))
+            .put("encryptedPrivateKey", secrets.base64(encryptedPrivateKey))
+    }
+
+    private fun JSONObject.toKeys(): Keys {
+        return Keys(
+            publicKey = secrets.toPublicKey(secrets.base64(getString("publicKey"))),
+            encryptedPrivateKey = secrets.base64(getString("encryptedPrivateKey")),
+        )
     }
 
     companion object {
@@ -94,21 +109,6 @@ internal class FinalSerializer : Serializer {
             return SessionStartResponse(
                 sessionId = UUID.fromString(getString("sessionId")),
                 publicKey = keyFactory.generatePublic(keySpec),
-            )
-        }
-
-        private fun Keys.toJSONObject(): JSONObject {
-            return JSONObject()
-                .put("publicKey", String(publicKey.encoded))
-                .put("encryptedPrivateKey", String(encryptedPrivateKey))
-        }
-
-        private fun JSONObject.toKeys(): Keys {
-            val keyFactory = KeyFactory.getInstance("RSA")
-            val keySpec = X509EncodedKeySpec(getString("publicKey").toByteArray())
-            return Keys(
-                publicKey = keyFactory.generatePublic(keySpec),
-                encryptedPrivateKey = getString("encryptedPrivateKey").toByteArray(),
             )
         }
     }

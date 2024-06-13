@@ -13,17 +13,21 @@ import sp.kx.logics.get
 import sp.kx.logics.remove
 import test.cryptographic.tls.module.app.Injection
 import test.cryptographic.tls.provider.Contexts
+import test.cryptographic.tls.provider.FinalAssets
 import test.cryptographic.tls.provider.FinalLocals
 import test.cryptographic.tls.provider.FinalLoggers
 import test.cryptographic.tls.provider.FinalRemotes
+import test.cryptographic.tls.provider.FinalSecrets
 import test.cryptographic.tls.provider.FinalSerializer
+import test.cryptographic.tls.provider.Secrets
 import test.cryptographic.tls.provider.Serializer
 import test.cryptographic.tls.provider.Sessions
 
 internal class App : Application() {
     override fun onCreate() {
         super.onCreate()
-        val serializer: Serializer = FinalSerializer()
+        val secrets: Secrets = FinalSecrets()
+        val serializer: Serializer = FinalSerializer(secrets)
         _injection = Injection(
             contexts = Contexts(
                 main = Dispatchers.Main,
@@ -40,8 +44,10 @@ internal class App : Application() {
                     serializer = serializer,
                 )
             },
-            serializer = FinalSerializer(),
+            serializer = serializer,
             sessions = Sessions(),
+            assets = FinalAssets(this),
+            secrets = secrets,
         )
     }
 

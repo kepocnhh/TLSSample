@@ -85,7 +85,7 @@ internal fun TransmitterScreen(
                     .background(Color.LightGray)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .align(Alignment.Center),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 BasicText(
                     modifier = Modifier,
