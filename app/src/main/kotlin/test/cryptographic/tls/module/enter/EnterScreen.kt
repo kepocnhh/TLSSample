@@ -119,7 +119,7 @@ internal fun EnterScreen(
                             logics.enter(pin = pin)
                         }
                         .wrapContentSize(),
-                    text = "auth",
+                    text = "enter",
                 )
             }
         }
