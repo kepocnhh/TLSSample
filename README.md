@@ -11,6 +11,20 @@ An application for testing a secure connection.
 ### backlog
 
 - [x] post double
-- [ ] RSA
+- [x] RSA
+- [ ] RSA + AES
+
+---
+
+PKT - Public Key Transmitter
+SK - Secret Key
+SID - Session ID
+M - Message
+
+PKT --> PKT
+SK, SID <-- PKT(SK) + SK(SID)
+
+SK(SID, M) --> M
+f(M) <-- SK(f(M))
 
 ---

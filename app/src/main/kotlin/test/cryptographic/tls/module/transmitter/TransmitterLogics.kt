@@ -33,14 +33,21 @@ internal class TransmitterLogics(
     val addressState = _addressState.asStateFlow()
 
     private suspend fun sync(address: URL, response: SessionStartResponse, message: String) {
-        logger.debug("session:ID: ${response.sessionId}")
+        logger.debug("session:ID: ${response.session.id}")
         withContext(injection.contexts.default) {
+            injection.locals.address = address
             runCatching {
-                TODO()
+                val number = message.toInt()
+                // todo signature
+                injection.remotes(address).encrypted(
+                    secretKey = response.secretKey,
+                    session = response.session,
+                ).double(number = number)
             }
         }.fold(
-            onSuccess = {
-                TODO()
+            onSuccess = { number ->
+                logger.debug("$message * 2 = $number")
+                _events.emit(Event.OnSync(Result.success("$message * 2 = $number")))
             },
             onFailure = { error ->
                 logger.warning("sync error: $error")
@@ -56,12 +63,14 @@ internal class TransmitterLogics(
             val request = SessionStartRequest(publicKey = keys.publicKey)
             val privateKey = injection.sessions.privateKey ?: TODO()
             runCatching {
-                val encrypted = injection.remotes(address).sessionStart(request = request)
-                val decrypted = injection.secrets.decrypt(privateKey = privateKey, encrypted = encrypted)
-                injection.serializer.sessionStartResponse.decode(decrypted)
+                injection.remotes(address).sessionStart(
+                    privateKey = privateKey,
+                    request = request,
+                )
             }
         }.fold(
             onSuccess = { response ->
+                logger.debug("secret:key: ${injection.secrets.hash(response.secretKey.encoded)}")
                 sync(address = address, response = response, message = message)
             },
             onFailure = { error ->

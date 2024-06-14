@@ -5,10 +5,12 @@ import sp.kx.http.HttpResponse
 import sp.kx.http.HttpRouting
 import test.cryptographic.tls.BuildConfig
 import test.cryptographic.tls.entity.SecureConnection
+import test.cryptographic.tls.entity.Session
 import test.cryptographic.tls.entity.SessionStartResponse
 import test.cryptographic.tls.module.app.Injection
 import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
+import java.util.Date
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -22,12 +24,6 @@ internal class ReceiverRouting(
     private val mapping = mapOf(
         "/version" to mapOf(
             "GET" to ::onGetVersion,
-        ),
-        "/hello" to mapOf(
-            "GET" to ::onGetHello,
-        ),
-        "/delay" to mapOf(
-            "POST" to ::onPostDelay,
         ),
         "/double" to mapOf(
             "POST" to ::onPostDouble,
@@ -62,65 +58,84 @@ internal class ReceiverRouting(
         val publicKey = injection.serializer.sessionStartRequest.decode(body).publicKey
         logger.debug("transmitter:public:key: ${injection.secrets.hash(publicKey.encoded)}")
         val sessionId = UUID.randomUUID()
+        val secretKey = injection.secrets.newSecretKey()
         injection.sessions.secureConnection = SecureConnection(
             sessionId = sessionId,
             expires = now + 1.minutes,
-            publicKey = publicKey,
+            secretKey = secretKey,
         )
+        logger.debug("session:expires: ${Date(injection.sessions.secureConnection!!.expires.inWholeMilliseconds)}") // todo
         logger.debug("session:ID: $sessionId")
-        val keys = injection.locals.keys ?: TODO()
-        val response = SessionStartResponse(
-            sessionId = sessionId,
-            publicKey = keys.publicKey,
-        )
-        logger.debug("public:key: ${injection.secrets.hash(keys.publicKey.encoded)}")
-        val decrypted = injection.serializer.sessionStartResponse.encode(response)
+        val session = Session(id = sessionId)
+        logger.debug("secret:key: ${injection.secrets.hash(secretKey.encoded)}")
         return HttpResponse(
             version = "1.1",
             code = 200,
             message = "OK",
-            headers = emptyMap(),
-            body = injection.secrets.encrypt(publicKey = publicKey, decrypted = decrypted),
+            headers = mapOf(
+                "secretKey" to injection.secrets.base64(injection.secrets.encrypt(publicKey, secretKey.encoded)),
+                "session" to injection.secrets.base64(injection.secrets.encrypt(secretKey, injection.serializer.session.encode(session))),
+            ),
+            body = null,
         )
     }
 
     private fun onPostDouble(request: HttpRequest): HttpResponse {
+        logger.debug("on post double...")
+        val secureConnection = injection.sessions.secureConnection
+        if (secureConnection == null) {
+            return HttpResponse(
+                version = "1.1",
+                code = 500,
+                message = "Internal Server Error",
+                headers = mapOf(
+                    "message" to "No session!",
+                ),
+                body = "todo".toByteArray(),
+            )
+        }
+        val now = System.currentTimeMillis().milliseconds
+        logger.debug("session:expires: ${Date(secureConnection.expires.inWholeMilliseconds)}")
+        if (secureConnection.expires < now) {
+            return HttpResponse(
+                version = "1.1",
+                code = 500,
+                message = "Internal Server Error",
+                headers = mapOf(
+                    "message" to "Session is expired!",
+                ),
+                body = "todo".toByteArray(),
+            )
+        }
         val body = request.body ?: error("No body!")
-        val numberText = String(body)
-        val number = numberText.toIntOrNull() ?: error("Wrong number!")
+        val decrypted = injection.secrets.decrypt(secureConnection.secretKey, body)
+        logger.debug("secret:key: ${injection.secrets.hash(secureConnection.secretKey.encoded)}")
+        val decryptedRequest = injection.serializer.decryptedRequest(injection.serializer.ints).decode(decrypted)
+        logger.debug("transmitter:session:ID: ${decryptedRequest.session.id}")
+        if (decryptedRequest.session.id != secureConnection.sessionId) {
+            return HttpResponse(
+                version = "1.1",
+                code = 500,
+                message = "Internal Server Error",
+                headers = mapOf(
+                    "message" to "Session ID error!",
+                ),
+                body = "todo".toByteArray(),
+            )
+        }
+        // todo signature
+        val number = decryptedRequest.payload
         if (number !in 1..128) TODO()
+        injection.sessions.secureConnection = null
         return HttpResponse(
             version = "1.1",
             code = 200,
             message = "OK",
             headers = emptyMap(),
-            body = (number * 2).toString().toByteArray(),
-        )
-    }
-
-    private fun onPostDelay(request: HttpRequest): HttpResponse {
-        val body = request.body ?: error("No body!")
-        val durationText = String(body)
-        val duration = durationText.toLongOrNull()?.milliseconds ?: error("Wrong duration!")
-        val supported = setOf(3.seconds)
-        if (!supported.contains(duration)) error("Duration $duration is not supported!")
-        Thread.sleep(duration.inWholeMilliseconds)
-        return HttpResponse(
-            version = "1.1",
-            code = 200,
-            message = "OK",
-            headers = emptyMap(),
-            body = null,
-        )
-    }
-
-    private fun onGetHello(request: HttpRequest): HttpResponse {
-        return HttpResponse(
-            version = "1.1",
-            code = 200,
-            message = "OK",
-            headers = emptyMap(),
-            body = null,
+            body = injection.secrets.encrypt(
+                secretKey = secureConnection.secretKey,
+                decrypted = injection.serializer.ints.encode(number * 2),
+            ),
         )
     }
 

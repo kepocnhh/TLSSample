@@ -1,17 +1,16 @@
 package test.cryptographic.tls.entity
 
-import java.security.PublicKey
 import java.util.Objects
-import java.util.UUID
+import javax.crypto.SecretKey
 
 internal class SessionStartResponse(
-    val publicKey: PublicKey,
-    val sessionId: UUID,
+    val secretKey: SecretKey,
+    val session: Session,
 ) {
     override fun equals(other: Any?): Boolean {
         return when (other) {
             is SessionStartResponse -> {
-                other.publicKey.encoded.contentEquals(publicKey.encoded) && other.sessionId == sessionId
+                other.secretKey.encoded.contentEquals(secretKey.encoded) && other.session == session
             }
             else -> false
         }
@@ -19,12 +18,12 @@ internal class SessionStartResponse(
 
     override fun hashCode(): Int {
         return Objects.hash(
-            publicKey.encoded.contentHashCode(),
-            sessionId,
+            secretKey.encoded.contentHashCode(),
+            session,
         )
     }
 
     override fun toString(): String {
-        return "StartSessionResponse(publicKey: ${publicKey.encoded.size}, sessionId: $sessionId)"
+        return "StartSessionResponse(secretKey: ${secretKey.encoded.size}, session: $session)"
     }
 }

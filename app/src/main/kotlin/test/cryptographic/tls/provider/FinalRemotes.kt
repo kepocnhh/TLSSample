@@ -2,63 +2,45 @@ package test.cryptographic.tls.provider
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import test.cryptographic.tls.entity.DecryptedRequest
+import test.cryptographic.tls.entity.Session
 import test.cryptographic.tls.entity.SessionStartRequest
+import test.cryptographic.tls.entity.SessionStartResponse
 import java.net.URL
+import java.security.PrivateKey
 import java.util.concurrent.TimeUnit
-import kotlin.time.Duration
+import javax.crypto.SecretKey
 
 internal class FinalRemotes(
     private val address: URL,
     private val serializer: Serializer,
+    private val secrets: Secrets,
 ) : Remotes {
-    override fun hello() {
-        val request = Request.Builder()
-            .url(URL(address, "hello"))
-            .build()
-        client.newCall(request).execute().use { response ->
+    private val client = OkHttpClient.Builder()
+        .callTimeout(5, TimeUnit.SECONDS)
+//        .connectTimeout(5, TimeUnit.SECONDS)
+//        .writeTimeout(5, TimeUnit.SECONDS)
+//        .readTimeout(5, TimeUnit.SECONDS)
+        .build()
+
+    override fun version(): String {
+        client.newCall(
+            request = Request.Builder()
+                .url(URL(address, "version"))
+                .build(),
+        ).execute().use { response ->
             when (response.code) {
-                200 -> {
-                    // noop
-                }
+                200 -> return String(response.body!!.bytes())
                 else -> error("Unknown code: ${response.code}!")
             }
         }
     }
 
-    override fun delay(duration: Duration) {
-        val body = duration.inWholeMilliseconds.toString().toRequestBody()
-        val request = Request.Builder()
-            .url(URL(address, "delay"))
-            .method("POST", body)
-            .build()
-        client.newCall(request).execute().use { response ->
-            when (response.code) {
-                200 -> {
-                    // noop
-                }
-                else -> error("Unknown code: ${response.code}!")
-            }
-        }
-    }
-
-    override fun double(number: Int): Int {
-        val request = Request.Builder()
-            .url(URL(address, "double"))
-            .method("POST", number.toString().toRequestBody())
-            .build()
-        client.newCall(request).execute().use { response ->
-            when (response.code) {
-                200 -> {
-                    val body = response.body ?: error("No body!")
-                    return body.string().toInt()
-                }
-                else -> error("Unknown code: ${response.code}!")
-            }
-        }
-    }
-
-    override fun sessionStart(request: SessionStartRequest): ByteArray {
+    override fun sessionStart(privateKey: PrivateKey, request: SessionStartRequest): SessionStartResponse {
+        println("session start...") // todo
         client.newCall(
             request = Request.Builder()
                 .url(URL(address, "session/start"))
@@ -67,20 +49,87 @@ internal class FinalRemotes(
         ).execute().use { response ->
             when (response.code) {
                 200 -> {
-                    val body = response.body ?: error("No body!")
-                    return body.bytes()
+                    val secretKey = secrets.toSecretKey(
+                        secrets.decrypt(
+                            privateKey = privateKey,
+                            encrypted = secrets.base64(
+                                response.header("secretKey", null) ?: TODO(),
+                            ),
+                        ),
+                    )
+                    println("secret:key: ${secrets.hash(secretKey.encoded)}") // todo
+                    val session = serializer.session.decode(
+                        secrets.decrypt(
+                            secretKey = secretKey,
+                            encrypted = secrets.base64(
+                                response.header("session", null) ?: TODO(),
+                            ),
+                        ),
+                    )
+                    return SessionStartResponse(
+                        session = session,
+                        secretKey = secretKey,
+                    )
                 }
                 else -> error("Unknown code: ${response.code}!")
             }
         }
     }
 
-    companion object {
-        private val client = OkHttpClient.Builder()
-            .callTimeout(5, TimeUnit.SECONDS)
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .build()
+    private inner class FinalEncryptedRemotes(
+        private val secretKey: SecretKey,
+        private val session: Session,
+    ) : EncryptedRemotes {
+        private fun <T : Any> T.toRequestBody(
+            transformer: Transformer<T, ByteArray>,
+        ): RequestBody {
+            val decryptedRequest = DecryptedRequest(
+                session = session,
+                payload = this,
+            )
+            println("session:ID: ${decryptedRequest.session.id}") // todo
+            val encrypted = secrets.encrypt(
+                secretKey = secretKey,
+                decrypted = serializer.decryptedRequest(transformer).encode(decryptedRequest),
+            )
+            println("encrypted(${encrypted.size}): ${secrets.hash(encrypted)}") // todo
+            return encrypted.toRequestBody()
+        }
+
+        private fun <T : Any> Response.fromResponseBody(transformer: Transformer<T, ByteArray>): T {
+            val body = body ?: error("No body!")
+            val decrypted = secrets.decrypt(
+                secretKey = secretKey,
+                encrypted = body.bytes(),
+            )
+            println("decrypted(${decrypted.size}): ${secrets.hash(decrypted)}") // todo
+            return transformer.decode(decrypted)
+        }
+
+        override fun double(number: Int): Int {
+            println("request -> double($number)...") // todo
+            client.newCall(
+                request = Request.Builder()
+                    .url(URL(address, "double"))
+                    .method("POST", number.toRequestBody(serializer.ints))
+                    .build(),
+            ).execute().use { response ->
+                println("response <- double($number)...") // todo
+                when (response.code) {
+                    200 -> return response.fromResponseBody(serializer.ints)
+                    else -> error("Unknown code: ${response.code}!")
+                }
+            }
+        }
+    }
+
+    override fun encrypted(
+        secretKey: SecretKey,
+        session: Session,
+    ): EncryptedRemotes {
+        return FinalEncryptedRemotes(
+            secretKey = secretKey,
+            session = session,
+        )
     }
 }

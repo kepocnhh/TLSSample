@@ -13,6 +13,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
 
 internal class FinalSecrets : Secrets {
     override fun getSecretKey(password: String): SecretKey {
@@ -32,6 +33,15 @@ internal class FinalSecrets : Secrets {
         val keyFactory = KeyFactory.getInstance("RSA")
         val keySpec = PKCS8EncodedKeySpec(encoded)
         return keyFactory.generatePrivate(keySpec)
+    }
+
+    override fun toSecretKey(encoded: ByteArray): SecretKey {
+        return SecretKeySpec(encoded, "AES")
+    }
+
+    override fun newSecretKey(): SecretKey {
+        val generator = KeyGenerator.getInstance("AES")
+        return generator.generateKey()
     }
 
     override fun encrypt(secretKey: SecretKey, decrypted: ByteArray): ByteArray {

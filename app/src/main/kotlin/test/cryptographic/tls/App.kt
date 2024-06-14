@@ -42,6 +42,7 @@ internal class App : Application() {
                 FinalRemotes(
                     address = address,
                     serializer = serializer,
+                    secrets = secrets,
                 )
             },
             serializer = serializer,

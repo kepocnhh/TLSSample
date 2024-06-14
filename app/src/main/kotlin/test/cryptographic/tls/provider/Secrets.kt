@@ -8,6 +8,8 @@ internal interface Secrets {
     fun getSecretKey(password: String): SecretKey
     fun toPublicKey(encoded: ByteArray): PublicKey
     fun toPrivateKey(encoded: ByteArray): PrivateKey
+    fun toSecretKey(encoded: ByteArray): SecretKey
+    fun newSecretKey(): SecretKey
     fun encrypt(secretKey: SecretKey, decrypted: ByteArray): ByteArray
     fun decrypt(secretKey: SecretKey, encrypted: ByteArray): ByteArray
     fun encrypt(publicKey: PublicKey, decrypted: ByteArray): ByteArray
