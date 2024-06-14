@@ -5,8 +5,6 @@ import test.cryptographic.tls.entity.Keys
 import test.cryptographic.tls.entity.SecureConnection
 import test.cryptographic.tls.entity.SessionStartRequest
 import test.cryptographic.tls.entity.SessionStartResponse
-import java.security.KeyFactory
-import java.security.spec.X509EncodedKeySpec
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -66,50 +64,42 @@ internal class FinalSerializer(
         )
     }
 
-    companion object {
-        private fun SecureConnection.toJSONObject(): JSONObject {
-            return JSONObject()
-                .put("expires", expires.inWholeMilliseconds)
-                .put("sessionId", sessionId.toString())
-                .put("publicKey", String(publicKey.encoded))
-        }
+    private fun SessionStartRequest.toJSONObject(): JSONObject {
+        return JSONObject()
+            .put("publicKey", secrets.base64(publicKey.encoded))
+    }
 
-        private fun JSONObject.toSecureConnection(): SecureConnection {
-            val keyFactory = KeyFactory.getInstance("RSA")
-            val keySpec = X509EncodedKeySpec(getString("publicKey").toByteArray())
-            return SecureConnection(
-                sessionId = UUID.fromString(getString("sessionId")),
-                publicKey = keyFactory.generatePublic(keySpec),
-                expires = getLong("expires").milliseconds,
-            )
-        }
+    private fun JSONObject.toSessionStartRequest(): SessionStartRequest {
+        return SessionStartRequest(
+            publicKey = secrets.toPublicKey(secrets.base64(getString("publicKey"))),
+        )
+    }
 
-        private fun SessionStartRequest.toJSONObject(): JSONObject {
-            return JSONObject()
-                .put("publicKey", String(publicKey.encoded))
-        }
+    private fun SessionStartResponse.toJSONObject(): JSONObject {
+        return JSONObject()
+            .put("sessionId", sessionId.toString())
+            .put("publicKey", secrets.base64(publicKey.encoded))
+    }
 
-        private fun JSONObject.toSessionStartRequest(): SessionStartRequest {
-            val keyFactory = KeyFactory.getInstance("RSA")
-            val keySpec = X509EncodedKeySpec(getString("publicKey").toByteArray())
-            return SessionStartRequest(
-                publicKey = keyFactory.generatePublic(keySpec),
-            )
-        }
+    private fun JSONObject.toSessionStartResponse(): SessionStartResponse {
+        return SessionStartResponse(
+            sessionId = UUID.fromString(getString("sessionId")),
+            publicKey = secrets.toPublicKey(secrets.base64(getString("publicKey"))),
+        )
+    }
 
-        private fun SessionStartResponse.toJSONObject(): JSONObject {
-            return JSONObject()
-                .put("sessionId", sessionId.toString())
-                .put("publicKey", String(publicKey.encoded))
-        }
+    private fun SecureConnection.toJSONObject(): JSONObject {
+        return JSONObject()
+            .put("expires", expires.inWholeMilliseconds)
+            .put("sessionId", sessionId.toString())
+            .put("publicKey", secrets.base64(publicKey.encoded))
+    }
 
-        private fun JSONObject.toSessionStartResponse(): SessionStartResponse {
-            val keyFactory = KeyFactory.getInstance("RSA")
-            val keySpec = X509EncodedKeySpec(getString("publicKey").toByteArray())
-            return SessionStartResponse(
-                sessionId = UUID.fromString(getString("sessionId")),
-                publicKey = keyFactory.generatePublic(keySpec),
-            )
-        }
+    private fun JSONObject.toSecureConnection(): SecureConnection {
+        return SecureConnection(
+            sessionId = UUID.fromString(getString("sessionId")),
+            publicKey = secrets.toPublicKey(secrets.base64(getString("publicKey"))),
+            expires = getLong("expires").milliseconds,
+        )
     }
 }

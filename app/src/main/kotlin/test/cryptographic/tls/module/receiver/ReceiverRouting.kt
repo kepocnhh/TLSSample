@@ -38,8 +38,7 @@ internal class ReceiverRouting(
     )
 
     private fun onPostSessionStart(request: HttpRequest): HttpResponse {
-        val sessions = injection.sessions ?: TODO()
-        val oldConnection = sessions.secureConnection
+        val oldConnection = injection.sessions.secureConnection
         val now = System.currentTimeMillis().milliseconds
         if (oldConnection != null) {
             if (oldConnection.expires > now) {
@@ -51,7 +50,7 @@ internal class ReceiverRouting(
                     body = "todo".toByteArray(),
                 )
             }
-            sessions.secureConnection = null
+            injection.sessions.secureConnection = null
         }
         val body = request.body ?: return HttpResponse(
             version = "1.1",
@@ -60,26 +59,28 @@ internal class ReceiverRouting(
             headers = emptyMap(),
             body = "todo".toByteArray(),
         )
-        val keyFactory = KeyFactory.getInstance("RSA")
-        val keySpec = X509EncodedKeySpec(body)
-        val publicKey = keyFactory.generatePublic(keySpec)
+        val publicKey = injection.serializer.sessionStartRequest.decode(body).publicKey
+        logger.debug("transmitter:public:key: ${injection.secrets.hash(publicKey.encoded)}")
         val sessionId = UUID.randomUUID()
-        sessions.secureConnection = SecureConnection(
+        injection.sessions.secureConnection = SecureConnection(
             sessionId = sessionId,
             expires = now + 1.minutes,
             publicKey = publicKey,
         )
+        logger.debug("session:ID: $sessionId")
         val keys = injection.locals.keys ?: TODO()
         val response = SessionStartResponse(
             sessionId = sessionId,
             publicKey = keys.publicKey,
         )
+        logger.debug("public:key: ${injection.secrets.hash(keys.publicKey.encoded)}")
+        val decrypted = injection.serializer.sessionStartResponse.encode(response)
         return HttpResponse(
             version = "1.1",
             code = 200,
             message = "OK",
             headers = emptyMap(),
-            body = injection.serializer.sessionStartResponse.encode(response),
+            body = injection.secrets.encrypt(publicKey = publicKey, decrypted = decrypted),
         )
     }
 

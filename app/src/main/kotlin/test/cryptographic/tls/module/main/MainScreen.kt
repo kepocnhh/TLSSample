@@ -65,7 +65,7 @@ internal fun MainScreen(
                     .align(Alignment.BottomCenter)
                     .clickable(onClick = onLock)
                     .wrapContentSize(),
-                text = "Lock",
+                text = "lock",
             )
         }
         Column(
@@ -73,7 +73,6 @@ internal fun MainScreen(
                 .fillMaxWidth()
                 .align(Alignment.Center),
         ) {
-            // todo public hash
             MainScreen.State.entries.forEach { state ->
                 BasicText(
                     modifier = Modifier

@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import sp.kx.logics.Logics
+import test.cryptographic.tls.entity.SessionStartRequest
+import test.cryptographic.tls.entity.SessionStartResponse
 import test.cryptographic.tls.module.app.Injection
 import java.net.URL
 import kotlin.time.Duration.Companion.seconds
@@ -30,20 +32,37 @@ internal class TransmitterLogics(
     private val _addressState = MutableStateFlow<AddressState?>(null)
     val addressState = _addressState.asStateFlow()
 
+    private suspend fun sync(address: URL, response: SessionStartResponse, message: String) {
+        logger.debug("session:ID: ${response.sessionId}")
+        withContext(injection.contexts.default) {
+            runCatching {
+                TODO()
+            }
+        }.fold(
+            onSuccess = {
+                TODO()
+            },
+            onFailure = { error ->
+                logger.warning("sync error: $error")
+                _events.emit(Event.OnSync(Result.failure(error)))
+            },
+        )
+    }
+
     private suspend fun sync(address: URL, message: String) {
         logger.debug("sync: $address")
         withContext(injection.contexts.default) {
+            val keys = injection.locals.keys ?: TODO()
+            val request = SessionStartRequest(publicKey = keys.publicKey)
+            val privateKey = injection.sessions.privateKey ?: TODO()
             runCatching {
-                val number = message.toInt()
-                injection.remotes(address).double(number = number)
+                val encrypted = injection.remotes(address).sessionStart(request = request)
+                val decrypted = injection.secrets.decrypt(privateKey = privateKey, encrypted = encrypted)
+                injection.serializer.sessionStartResponse.decode(decrypted)
             }
         }.fold(
-            onSuccess = { number ->
-                logger.debug("sync success: $number")
-                withContext(injection.contexts.default) {
-                    injection.locals.address = address
-                }
-                _events.emit(Event.OnSync(Result.success("$message * 2 = $number")))
+            onSuccess = { response ->
+                sync(address = address, response = response, message = message)
             },
             onFailure = { error ->
                 logger.warning("sync error: $error")

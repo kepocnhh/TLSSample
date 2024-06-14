@@ -10,6 +10,8 @@ internal interface Secrets {
     fun toPrivateKey(encoded: ByteArray): PrivateKey
     fun encrypt(secretKey: SecretKey, decrypted: ByteArray): ByteArray
     fun decrypt(secretKey: SecretKey, encrypted: ByteArray): ByteArray
+    fun encrypt(publicKey: PublicKey, decrypted: ByteArray): ByteArray
+    fun decrypt(privateKey: PrivateKey, encrypted: ByteArray): ByteArray
     fun hash(bytes: ByteArray): String
     fun base64(encoded: String): ByteArray
     fun base64(decoded: ByteArray): String

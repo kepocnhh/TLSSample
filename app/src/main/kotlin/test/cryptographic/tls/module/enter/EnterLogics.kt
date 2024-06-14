@@ -18,7 +18,7 @@ internal class EnterLogics(
 
     data class State(val loading: Boolean)
 
-    private val loggers = injection.loggers.create("[Enter]")
+    private val logger = injection.loggers.create("[Enter]")
 
     private val _events = MutableSharedFlow<Event>()
     val events = _events.asSharedFlow()
@@ -32,10 +32,10 @@ internal class EnterLogics(
             runCatching {
                 if (pin.isBlank()) error("PIN is blank!")
                 val secretKey = injection.secrets.getSecretKey(password = pin)
-                loggers.debug("secret key: ${injection.secrets.hash(secretKey.encoded)}")
+                logger.debug("secret key: ${injection.secrets.hash(secretKey.encoded)}")
                 val keys = injection.locals.keys ?: TODO()
                 val encoded = injection.secrets.decrypt(secretKey, keys.encryptedPrivateKey)
-                loggers.debug("private key: ${injection.secrets.hash(encoded)}")
+                logger.debug("private key: ${injection.secrets.hash(encoded)}")
                 injection.secrets.toPrivateKey(encoded)
             }
         }

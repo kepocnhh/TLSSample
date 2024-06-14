@@ -59,10 +59,10 @@ internal fun AuthScreen(
             }
         }
         val state = logics.states.collectAsState().value
-        val fileState = remember { mutableStateOf("a201.pkcs12") }
-        val passwordState = remember { mutableStateOf("qwe201") }
-        val aliasState = remember { mutableStateOf("a201") }
-        val pinState = remember { mutableStateOf("0201") }
+        val fileState = remember { mutableStateOf("") }
+        val passwordState = remember { mutableStateOf("") }
+        val aliasState = remember { mutableStateOf("") }
+        val pinState = remember { mutableStateOf("") }
         Box(
             modifier = Modifier
                 .fillMaxSize()

@@ -20,7 +20,7 @@ internal class AuthLogics(
 
     data class State(val loading: Boolean)
 
-    private val loggers = injection.loggers.create("[Auth]")
+    private val logger = injection.loggers.create("[Auth]")
 
     private val _events = MutableSharedFlow<Event>()
     val events = _events.asSharedFlow()
@@ -40,20 +40,20 @@ internal class AuthLogics(
                 if (password.isBlank()) error("Password is blank!")
                 if (pin.isBlank()) error("PIN is blank!")
                 val keyStore = KeyStore.getInstance("PKCS12")
-                loggers.debug("read \"$file\"...")
+                logger.debug("read \"$file\"...")
                 injection.assets.getAsset(name = file).use {
-                    loggers.debug("load key store...")
+                    logger.debug("load key store...")
                     keyStore.load(it, password.toCharArray())
                 }
                 val asymmetricKey = keyStore.getKey(alias, password.toCharArray()) ?: error("No \"$alias\"!")
-                loggers.debug("private key: ${injection.secrets.hash(asymmetricKey.encoded)}")
+                logger.debug("private key: ${injection.secrets.hash(asymmetricKey.encoded)}")
                 check(asymmetricKey is PrivateKey)
                 val certificate = keyStore.getCertificate(alias)
-                loggers.debug("certificate: ${injection.secrets.hash(certificate.encoded)}")
+                logger.debug("certificate: ${injection.secrets.hash(certificate.encoded)}")
                 val publicKey = certificate.publicKey
-                loggers.debug("public key: ${injection.secrets.hash(publicKey.encoded)}")
+                logger.debug("public key: ${injection.secrets.hash(publicKey.encoded)}")
                 val secretKey = injection.secrets.getSecretKey(password = pin)
-                loggers.debug("secret key: ${injection.secrets.hash(secretKey.encoded)}")
+                logger.debug("secret key: ${injection.secrets.hash(secretKey.encoded)}")
                 val keys = Keys(
                     publicKey = publicKey,
                     encryptedPrivateKey = injection.secrets.encrypt(secretKey, asymmetricKey.encoded),

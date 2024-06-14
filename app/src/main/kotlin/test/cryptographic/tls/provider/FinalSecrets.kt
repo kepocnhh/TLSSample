@@ -46,6 +46,18 @@ internal class FinalSecrets : Secrets {
         return cipher.doFinal(encrypted)
     }
 
+    override fun encrypt(publicKey: PublicKey, decrypted: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("RSA")
+        cipher.init(Cipher.ENCRYPT_MODE, publicKey)
+        return cipher.doFinal(decrypted)
+    }
+
+    override fun decrypt(privateKey: PrivateKey, encrypted: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("RSA")
+        cipher.init(Cipher.DECRYPT_MODE, privateKey)
+        return cipher.doFinal(encrypted)
+    }
+
     override fun hash(bytes: ByteArray): String {
         val md = MessageDigest.getInstance("SHA256")
         return md.digest(bytes).joinToString(separator = "") { String.format("%02x", it.toInt() and 0xff) }
