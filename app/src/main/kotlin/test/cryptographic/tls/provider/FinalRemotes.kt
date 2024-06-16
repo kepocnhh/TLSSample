@@ -5,12 +5,14 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import org.json.JSONObject
 import test.cryptographic.tls.entity.DecryptedRequest
 import test.cryptographic.tls.entity.Session
 import test.cryptographic.tls.entity.SessionStartRequest
 import test.cryptographic.tls.entity.SessionStartResponse
 import java.net.URL
 import java.security.PrivateKey
+import java.security.PublicKey
 import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
 
@@ -131,5 +133,33 @@ internal class FinalRemotes(
             secretKey = secretKey,
             session = session,
         )
+    }
+
+    override fun sessionStart(publicKey: PublicKey): ByteArray {
+        return client.newCall(
+            request = Request.Builder()
+                .url(URL(address, "session/start"))
+                .method("POST", publicKey.encoded.toRequestBody())
+                .build(),
+        ).execute().use { response ->
+            when (response.code) {
+                200 -> response.body?.bytes() ?: error("No body!")
+                else -> error("Unknown code: ${response.code}!")
+            }
+        }
+    }
+
+    override fun double(encrypted: ByteArray): ByteArray {
+        return client.newCall(
+            request = Request.Builder()
+                .url(URL(address, "double"))
+                .method("POST", encrypted.toRequestBody())
+                .build(),
+        ).execute().use { response ->
+            when (response.code) {
+                200 -> response.body?.bytes() ?: error("No body!")
+                else -> error("Unknown code: ${response.code}!")
+            }
+        }
     }
 }

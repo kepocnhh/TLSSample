@@ -10,6 +10,7 @@ import test.cryptographic.tls.entity.SessionStartRequest
 import test.cryptographic.tls.entity.SessionStartResponse
 import test.cryptographic.tls.module.app.Injection
 import java.net.URL
+import javax.crypto.SecretKey
 import kotlin.time.Duration.Companion.seconds
 
 internal class TransmitterLogics(
@@ -56,7 +57,59 @@ internal class TransmitterLogics(
         )
     }
 
+    private suspend fun sync(address: URL, message: String, secretKey: SecretKey) {
+        logger.debug("sync: $address \"$message\"")
+        withContext(injection.contexts.default) {
+            runCatching {
+                val encryptedRequest = injection.secrets.encrypt(
+                    secretKey = secretKey,
+                    decrypted = message.toByteArray(),
+                )
+                logger.debug("encrypted:request: ${injection.secrets.hash(encryptedRequest)}")
+                val encryptedResponse = injection.remotes(address).double(encryptedRequest)
+                logger.debug("encrypted:response: ${injection.secrets.hash(encryptedResponse)}")
+                val decryptedResponse = injection.secrets.decrypt(secretKey = secretKey, encryptedResponse)
+                logger.debug("decrypted:response: ${injection.secrets.hash(decryptedResponse)}")
+                String(decryptedResponse).toInt()
+            }
+        }.fold(
+            onSuccess = { number ->
+                logger.debug("$message * 2 = $number")
+                _events.emit(Event.OnSync(Result.success("$message * 2 = $number")))
+            },
+            onFailure = { error ->
+                logger.warning("sync error: $error")
+                _events.emit(Event.OnSync(Result.failure(error)))
+            },
+        )
+    }
+
     private suspend fun sync(address: URL, message: String) {
+        logger.debug("sync: $address")
+        withContext(injection.contexts.default) {
+            val keys = injection.locals.keys ?: TODO()
+            val privateKey = injection.sessions.privateKey ?: TODO()
+            runCatching {
+                logger.debug("public:key: ${injection.secrets.hash(keys.publicKey.encoded)}")
+                val encrypted = injection.remotes(address).sessionStart(publicKey = keys.publicKey)
+                logger.debug("secret:key:encrypted: ${injection.secrets.hash(encrypted)}")
+                injection.locals.address = address
+                val decrypted = injection.secrets.decrypt(privateKey, encrypted)
+                logger.debug("secret:key: ${injection.secrets.hash(decrypted)}")
+                injection.secrets.toSecretKey(decrypted)
+            }
+        }.fold(
+            onSuccess = { secretKey ->
+                sync(address = address, message = message, secretKey = secretKey)
+            },
+            onFailure = { error ->
+                logger.warning("sync error: $error")
+                _events.emit(Event.OnSync(Result.failure(error)))
+            },
+        )
+    }
+
+    private suspend fun syncOld(address: URL, message: String) {
         logger.debug("sync: $address")
         withContext(injection.contexts.default) {
             val keys = injection.locals.keys ?: TODO()

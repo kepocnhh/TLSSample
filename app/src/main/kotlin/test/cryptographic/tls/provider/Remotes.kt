@@ -4,6 +4,7 @@ import test.cryptographic.tls.entity.SessionStartRequest
 import test.cryptographic.tls.entity.Session
 import test.cryptographic.tls.entity.SessionStartResponse
 import java.security.PrivateKey
+import java.security.PublicKey
 import javax.crypto.SecretKey
 
 internal interface Remotes {
@@ -13,4 +14,7 @@ internal interface Remotes {
         secretKey: SecretKey,
         session: Session,
     ): EncryptedRemotes
+
+    fun sessionStart(publicKey: PublicKey): ByteArray
+    fun double(encrypted: ByteArray): ByteArray
 }

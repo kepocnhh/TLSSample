@@ -57,13 +57,13 @@ internal class FinalSecrets : Secrets {
     }
 
     override fun encrypt(publicKey: PublicKey, decrypted: ByteArray): ByteArray {
-        val cipher = Cipher.getInstance("RSA")
+        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.ENCRYPT_MODE, publicKey)
         return cipher.doFinal(decrypted)
     }
 
     override fun decrypt(privateKey: PrivateKey, encrypted: ByteArray): ByteArray {
-        val cipher = Cipher.getInstance("RSA")
+        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.DECRYPT_MODE, privateKey)
         return cipher.doFinal(encrypted)
     }
