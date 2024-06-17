@@ -17,4 +17,6 @@ internal interface Secrets {
     fun hash(bytes: ByteArray): String
     fun base64(encoded: String): ByteArray
     fun base64(decoded: ByteArray): String
+    fun sign(privateKey: PrivateKey, payload: ByteArray): ByteArray
+    fun verify(publicKey: PublicKey, message: ByteArray, sig: ByteArray)
 }

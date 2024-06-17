@@ -24,7 +24,7 @@ P - Payload
 M - Message
 
 PKT -->
-<-- PKT(SK)/SIG(P)/SK(SID+PKR)
+<-- PKR/PKT(SK)/SK(SID)/SIG(P)
 
 SIG(SID+P)/SK(M) -->
 <-- SIG(SID+P)/SK(f(M))

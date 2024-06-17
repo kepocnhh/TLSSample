@@ -5,16 +5,11 @@ import sp.kx.http.HttpResponse
 import sp.kx.http.HttpRouting
 import test.cryptographic.tls.BuildConfig
 import test.cryptographic.tls.entity.SecureConnection
-import test.cryptographic.tls.entity.Session
-import test.cryptographic.tls.entity.SessionStartResponse
 import test.cryptographic.tls.module.app.Injection
-import java.security.KeyFactory
-import java.security.spec.X509EncodedKeySpec
 import java.util.Date
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.seconds
 
 internal class ReceiverRouting(
     private val injection: Injection,
@@ -34,6 +29,7 @@ internal class ReceiverRouting(
     )
 
     private fun onPostSessionStart(request: HttpRequest): HttpResponse {
+        logger.debug("on post session start...")
         val oldConnection = injection.sessions.secureConnection
         val now = System.currentTimeMillis().milliseconds
         if (oldConnection != null) {
@@ -55,87 +51,93 @@ internal class ReceiverRouting(
             headers = emptyMap(),
             body = "todo".toByteArray(),
         )
-        val publicKey = injection.serializer.sessionStartRequest.decode(body).publicKey
-        logger.debug("transmitter:public:key: ${injection.secrets.hash(publicKey.encoded)}")
+        val keys = injection.locals.keys ?: TODO()
+        val publicKey = injection.secrets.toPublicKey(body)
+        logger.debug("public:key:transmitter: ${injection.secrets.hash(publicKey.encoded)}")
         val sessionId = UUID.randomUUID()
         val secretKey = injection.secrets.newSecretKey()
+        logger.debug("secret:key: ${injection.secrets.hash(secretKey.encoded)}")
         injection.sessions.secureConnection = SecureConnection(
             sessionId = sessionId,
             expires = now + 1.minutes,
             secretKey = secretKey,
+            publicKey = publicKey,
         )
         logger.debug("session:expires: ${Date(injection.sessions.secureConnection!!.expires.inWholeMilliseconds)}") // todo
         logger.debug("session:ID: $sessionId")
-        val session = Session(id = sessionId)
-        logger.debug("secret:key: ${injection.secrets.hash(secretKey.encoded)}")
+        val payload = sessionId.toString().toByteArray()
+        logger.debug("payload: ${injection.secrets.hash(payload)}")
+        val privateKey = injection.sessions.privateKey ?: TODO()
+        val list = listOf(
+            injection.secrets.base64(keys.publicKey.encoded),
+            injection.secrets.base64(injection.secrets.encrypt(publicKey, secretKey.encoded)),
+            injection.secrets.base64(injection.secrets.encrypt(secretKey, payload)),
+            injection.secrets.base64(injection.secrets.sign(privateKey, payload)),
+        )
         return HttpResponse(
             version = "1.1",
             code = 200,
             message = "OK",
-            headers = mapOf(
-                "secretKey" to injection.secrets.base64(injection.secrets.encrypt(publicKey, secretKey.encoded)),
-                "session" to injection.secrets.base64(injection.secrets.encrypt(secretKey, injection.serializer.session.encode(session))),
-            ),
-            body = null,
+            headers = emptyMap(),
+            body = list.joinToString(separator = "\n").toByteArray(),
+        )
+    }
+
+    private fun response(secureConnection: SecureConnection, payload: ByteArray): HttpResponse {
+        val privateKey = injection.sessions.privateKey ?: TODO()
+        return HttpResponse(
+            version = "1.1",
+            code = 200,
+            message = "OK",
+            headers = emptyMap(),
+            body = listOf(
+                injection.secrets.base64(injection.secrets.encrypt(secureConnection.secretKey, payload)),
+                injection.secrets.base64(injection.secrets.sign(privateKey, secureConnection.sessionId.toString().toByteArray() + payload)),
+            ).joinToString(separator = "\n").toByteArray(),
         )
     }
 
     private fun onPostDouble(request: HttpRequest): HttpResponse {
         logger.debug("on post double...")
         val secureConnection = injection.sessions.secureConnection
+        val now = System.currentTimeMillis().milliseconds
         if (secureConnection == null) {
             return HttpResponse(
                 version = "1.1",
                 code = 500,
                 message = "Internal Server Error",
-                headers = mapOf(
-                    "message" to "No session!",
-                ),
+                headers = mapOf("message" to "No session!"),
                 body = "todo".toByteArray(),
             )
         }
-        val now = System.currentTimeMillis().milliseconds
-        logger.debug("session:expires: ${Date(secureConnection.expires.inWholeMilliseconds)}")
         if (secureConnection.expires < now) {
             return HttpResponse(
                 version = "1.1",
                 code = 500,
                 message = "Internal Server Error",
-                headers = mapOf(
-                    "message" to "Session is expired!",
-                ),
+                headers = mapOf("message" to "Session expired!"),
                 body = "todo".toByteArray(),
             )
         }
-        val body = request.body ?: error("No body!")
-        val decrypted = injection.secrets.decrypt(secureConnection.secretKey, body)
-        logger.debug("secret:key: ${injection.secrets.hash(secureConnection.secretKey.encoded)}")
-        val decryptedRequest = injection.serializer.decryptedRequest(injection.serializer.ints).decode(decrypted)
-        logger.debug("transmitter:session:ID: ${decryptedRequest.session.id}")
-        if (decryptedRequest.session.id != secureConnection.sessionId) {
-            return HttpResponse(
-                version = "1.1",
-                code = 500,
-                message = "Internal Server Error",
-                headers = mapOf(
-                    "message" to "Session ID error!",
-                ),
-                body = "todo".toByteArray(),
-            )
-        }
-        // todo signature
-        val number = decryptedRequest.payload
-        if (number !in 1..128) TODO()
-        injection.sessions.secureConnection = null
-        return HttpResponse(
+        val body = request.body ?: return HttpResponse(
             version = "1.1",
-            code = 200,
-            message = "OK",
-            headers = emptyMap(),
-            body = injection.secrets.encrypt(
-                secretKey = secureConnection.secretKey,
-                decrypted = injection.serializer.ints.encode(number * 2),
-            ),
+            code = 500,
+            message = "Internal Server Error",
+            headers = mapOf("message" to "No body!"),
+            body = "todo".toByteArray(),
+        )
+        val secretKey = secureConnection.secretKey
+        val split = String(body).split("\n")
+        check(split.size == 2)
+        val payload = injection.secrets.decrypt(secretKey, injection.secrets.base64(split[0]))
+        val sig = injection.secrets.base64(split[1])
+        injection.secrets.verify(secureConnection.publicKey, secureConnection.sessionId.toString().toByteArray() + payload, sig)
+        val number = String(payload).toInt()
+        check(number in 1..128)
+        injection.sessions.secureConnection = null
+        return response(
+            secureConnection = secureConnection,
+            payload = "${number * 2}".toByteArray(),
         )
     }
 
@@ -157,21 +159,25 @@ internal class ReceiverRouting(
                 headers: ${request.headers}
             """.trimIndent(),
         )
-        val route = mapping[request.query] ?: return HttpResponse(
-            version = "1.1",
-            code = 404,
-            message = "Not Found",
-            headers = emptyMap(),
-            body = null,
-        )
-        val transform = route[request.method] ?: return HttpResponse(
-            version = "1.1",
-            code = 405,
-            message = "Method Not Allowed",
-            headers = emptyMap(),
-            body = null,
-        )
-        val response = transform(request)
+        val response = when (val route = mapping[request.query]) {
+            null -> HttpResponse(
+                version = "1.1",
+                code = 404,
+                message = "Not Found",
+                headers = emptyMap(),
+                body = null,
+            )
+            else -> when (val transform = route[request.method]) {
+                null -> HttpResponse(
+                    version = "1.1",
+                    code = 405,
+                    message = "Method Not Allowed",
+                    headers = emptyMap(),
+                    body = null,
+                )
+                else -> transform(request)
+            }
+        }
         logger.debug(
             message = """
                 --> response

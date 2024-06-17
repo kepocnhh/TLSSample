@@ -2,17 +2,12 @@ package test.cryptographic.tls.provider
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import org.json.JSONObject
-import test.cryptographic.tls.entity.DecryptedRequest
-import test.cryptographic.tls.entity.Session
-import test.cryptographic.tls.entity.SessionStartRequest
 import test.cryptographic.tls.entity.SessionStartResponse
 import java.net.URL
 import java.security.PrivateKey
 import java.security.PublicKey
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
 
@@ -28,114 +23,10 @@ internal class FinalRemotes(
 //        .readTimeout(5, TimeUnit.SECONDS)
         .build()
 
-    override fun version(): String {
-        client.newCall(
-            request = Request.Builder()
-                .url(URL(address, "version"))
-                .build(),
-        ).execute().use { response ->
-            when (response.code) {
-                200 -> return String(response.body!!.bytes())
-                else -> error("Unknown code: ${response.code}!")
-            }
-        }
-    }
-
-    override fun sessionStart(privateKey: PrivateKey, request: SessionStartRequest): SessionStartResponse {
-        println("session start...") // todo
-        client.newCall(
-            request = Request.Builder()
-                .url(URL(address, "session/start"))
-                .method("POST", serializer.sessionStartRequest.encode(request).toRequestBody())
-                .build(),
-        ).execute().use { response ->
-            when (response.code) {
-                200 -> {
-                    val secretKey = secrets.toSecretKey(
-                        secrets.decrypt(
-                            privateKey = privateKey,
-                            encrypted = secrets.base64(
-                                response.header("secretKey", null) ?: TODO(),
-                            ),
-                        ),
-                    )
-                    println("secret:key: ${secrets.hash(secretKey.encoded)}") // todo
-                    val session = serializer.session.decode(
-                        secrets.decrypt(
-                            secretKey = secretKey,
-                            encrypted = secrets.base64(
-                                response.header("session", null) ?: TODO(),
-                            ),
-                        ),
-                    )
-                    return SessionStartResponse(
-                        session = session,
-                        secretKey = secretKey,
-                    )
-                }
-                else -> error("Unknown code: ${response.code}!")
-            }
-        }
-    }
-
-    private inner class FinalEncryptedRemotes(
-        private val secretKey: SecretKey,
-        private val session: Session,
-    ) : EncryptedRemotes {
-        private fun <T : Any> T.toRequestBody(
-            transformer: Transformer<T, ByteArray>,
-        ): RequestBody {
-            val decryptedRequest = DecryptedRequest(
-                session = session,
-                payload = this,
-            )
-            println("session:ID: ${decryptedRequest.session.id}") // todo
-            val encrypted = secrets.encrypt(
-                secretKey = secretKey,
-                decrypted = serializer.decryptedRequest(transformer).encode(decryptedRequest),
-            )
-            println("encrypted(${encrypted.size}): ${secrets.hash(encrypted)}") // todo
-            return encrypted.toRequestBody()
-        }
-
-        private fun <T : Any> Response.fromResponseBody(transformer: Transformer<T, ByteArray>): T {
-            val body = body ?: error("No body!")
-            val decrypted = secrets.decrypt(
-                secretKey = secretKey,
-                encrypted = body.bytes(),
-            )
-            println("decrypted(${decrypted.size}): ${secrets.hash(decrypted)}") // todo
-            return transformer.decode(decrypted)
-        }
-
-        override fun double(number: Int): Int {
-            println("request -> double($number)...") // todo
-            client.newCall(
-                request = Request.Builder()
-                    .url(URL(address, "double"))
-                    .method("POST", number.toRequestBody(serializer.ints))
-                    .build(),
-            ).execute().use { response ->
-                println("response <- double($number)...") // todo
-                when (response.code) {
-                    200 -> return response.fromResponseBody(serializer.ints)
-                    else -> error("Unknown code: ${response.code}!")
-                }
-            }
-        }
-    }
-
-    override fun encrypted(
-        secretKey: SecretKey,
-        session: Session,
-    ): EncryptedRemotes {
-        return FinalEncryptedRemotes(
-            secretKey = secretKey,
-            session = session,
-        )
-    }
-
-    override fun sessionStart(publicKey: PublicKey): ByteArray {
+    override fun sessionStart(
+        publicKey: PublicKey,
+        privateKey: PrivateKey,
+    ): SessionStartResponse {
         return client.newCall(
             request = Request.Builder()
                 .url(URL(address, "session/start"))
@@ -143,21 +34,60 @@ internal class FinalRemotes(
                 .build(),
         ).execute().use { response ->
             when (response.code) {
-                200 -> response.body?.bytes() ?: error("No body!")
+                200 -> {
+                    val body = response.body ?: error("No body!")
+                    val bytes = body.bytes()
+                    val text = String(bytes)
+                    val split = text.split("\n")
+                    check(split.size == 4)
+                    val publicKeyReceiver = secrets.toPublicKey(secrets.base64(split[0]))
+                    val secretKey = secrets.toSecretKey(secrets.decrypt(privateKey, secrets.base64(split[1])))
+                    val payload = secrets.decrypt(secretKey, secrets.base64(split[2]))
+                    println("[Remotes]: payload: ${secrets.hash(payload)}")
+                    val sig = secrets.base64(split[3])
+                    secrets.verify(publicKeyReceiver, message = payload, sig = sig)
+                    SessionStartResponse(
+                        publicKey = publicKeyReceiver,
+                        secretKey = secretKey,
+                        sessionId = UUID.fromString(String(payload)),
+                    )
+                }
                 else -> error("Unknown code: ${response.code}!")
             }
         }
     }
 
-    override fun double(encrypted: ByteArray): ByteArray {
+    override fun double(
+        secretKey: SecretKey,
+        privateKey: PrivateKey,
+        publicKey: PublicKey,
+        sessionId: UUID,
+        number: Int,
+    ): Int {
+        val payload = "$number".toByteArray()
+        val list = listOf(
+            secrets.base64(secrets.encrypt(secretKey, payload)),
+            secrets.base64(secrets.sign(privateKey, sessionId.toString().toByteArray() + payload)),
+        )
         return client.newCall(
             request = Request.Builder()
                 .url(URL(address, "double"))
-                .method("POST", encrypted.toRequestBody())
+                .method("POST", list.joinToString(separator = "\n").toByteArray().toRequestBody())
                 .build(),
         ).execute().use { response ->
             when (response.code) {
-                200 -> response.body?.bytes() ?: error("No body!")
+                200 -> {
+                    val body = response.body ?: error("No body!")
+                    val split = String(body.bytes()).split("\n")
+                    check(split.size == 2)
+                    val bytes = secrets.decrypt(secretKey, secrets.base64(split[0]))
+                    secrets.verify(
+                        publicKey = publicKey,
+                        message = sessionId.toString().toByteArray() + bytes,
+                        sig = secrets.base64(split[1]),
+                    )
+                    String(bytes).toInt()
+                }
                 else -> error("Unknown code: ${response.code}!")
             }
         }

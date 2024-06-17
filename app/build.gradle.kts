@@ -92,7 +92,7 @@ androidComponents.onVariants { variant ->
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation(compose.foundation)
-    implementation("com.github.kepocnhh:HttpReceiver:0.0.1u-SNAPSHOT")
+    implementation("com.github.kepocnhh:HttpReceiver:0.0.2u-SNAPSHOT")
     implementation("com.github.kepocnhh:Logics:0.1.3-SNAPSHOT")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

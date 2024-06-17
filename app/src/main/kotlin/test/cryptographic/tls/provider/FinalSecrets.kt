@@ -4,7 +4,7 @@ import java.security.KeyFactory
 import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.PublicKey
-import java.security.Security
+import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
@@ -66,6 +66,20 @@ internal class FinalSecrets : Secrets {
         val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.DECRYPT_MODE, privateKey)
         return cipher.doFinal(encrypted)
+    }
+
+    override fun sign(privateKey: PrivateKey, payload: ByteArray): ByteArray {
+        val signature = Signature.getInstance("SHA256withRSA")
+        signature.initSign(privateKey)
+        signature.update(payload)
+        return signature.sign()
+    }
+
+    override fun verify(publicKey: PublicKey, message: ByteArray, sig: ByteArray) {
+        val signature = Signature.getInstance("SHA256withRSA")
+        signature.initVerify(publicKey)
+        signature.update(message)
+        check(signature.verify(sig)) { "Verify error!" }
     }
 
     override fun hash(bytes: ByteArray): String {
