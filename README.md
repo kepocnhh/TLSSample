@@ -17,14 +17,16 @@ An application for testing a secure connection.
 ---
 
 PKT - Public Key Transmitter
+PKR - Public Key Receiver
 SK - Secret Key
 SID - Session ID
+P - Payload
 M - Message
 
-PKT --> PKT
-SK, SID <-- PKT(SK) + SK(SID)
+PKT -->
+<-- PKT(SK)/SIG(P)/SK(SID+PKR)
 
-SK(SID, M) --> M
-f(M) <-- SK(f(M))
+SIG(SID+P)/SK(M) -->
+<-- SIG(SID+P)/SK(f(M))
 
 ---
