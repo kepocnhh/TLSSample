@@ -12,7 +12,8 @@ An application for testing a secure connection.
 
 - [x] post double
 - [x] RSA
-- [ ] RSA + AES
+- [x] RSA + AES
+- [ ] RSA + AES + MAC
 
 ---
 
