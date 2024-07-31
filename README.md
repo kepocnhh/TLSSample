@@ -26,22 +26,20 @@ SID - Session ID
 ===>
 
 path = `handshake`
-P = tSalt + dht + T + RID
 
 /handshake
-pub(P)
-sig(path + P)
+pub(tSalt + dht + T + RID)
+sig(path + tSalt + dht + T + RID)
 
 <===
 
 path = `handshake`
-P = rSalt + T
 SID = tSalt + rSalt
 
 pub(dhr)
 DH(SK)
-SK(P)
-sig(path + P + RID + tSalt)
+SK(rSalt + T)
+sig(path + rSalt + dhr + T + RID + tSalt + SK)
 
 ===>
 
@@ -50,7 +48,7 @@ P = `42`
 
 /double
 SK(P + T)
-sig(path + P + RID + SID)
+sig(path + P + T + RID + SID)
 
 <===
 
@@ -58,7 +56,32 @@ path = `double`
 P = `84`
 
 SK(P + T)
-sig(path + P + RID + SID)
+sig(path + P + T + RID + SID)
+
+---
+
+P - Payload
+SK - Secret Key
+T - Time
+RID - Request ID
+
+===>
+
+path = `double`
+P = `42`
+
+/double
+pub(SK)
+SK(P + T + RID)
+sig(P + T + RID + path + SK)
+
+<===
+
+path = `double`
+P = `84`
+
+SK(P + T)
+sig(P + T + RID + path)
 
 ---
 
