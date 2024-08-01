@@ -8,8 +8,10 @@ import test.cryptographic.tls.entity.SecureConnection
 import test.cryptographic.tls.module.app.Injection
 import test.cryptographic.tls.util.BytesUtil
 import test.cryptographic.tls.util.toHEX
+import java.security.PrivateKey
 import java.util.Date
 import java.util.UUID
+import javax.crypto.SecretKey
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
@@ -18,7 +20,7 @@ internal class ReceiverRouting(
 ) : HttpRouting {
     private val logger = injection.loggers.create("[Receiver|Routing]")
 
-    private val mapping = mapOf(
+    private val mapping: Map<String, Map<String, (HttpRequest) -> HttpResponse>> = mapOf(
         "/version" to mapOf(
             "GET" to ::onGetVersion,
         ),
@@ -99,8 +101,17 @@ internal class ReceiverRouting(
         )
     }
 
-    private fun onPostDouble(request: HttpRequest): HttpResponse {
-        logger.debug("on post double...")
+    private fun tls(
+        request: HttpRequest,
+        onRequest: (
+            requestEncoded: ByteArray,
+            secretKey: SecretKey,
+            privateKey: PrivateKey,
+            encodedSpec: ByteArray,
+            methodCode: Byte,
+            requestID: UUID,
+        ) -> HttpResponse,
+    ): HttpResponse {
         val requestBody = request.body ?: return HttpResponse(
             version = "1.1",
             code = 500,
@@ -122,22 +133,25 @@ internal class ReceiverRouting(
         logger.debug("secret key: ${secretKey.encoded.toHEX()}") // todo
         val payload = injection.secrets.decrypt(secretKey, encryptedPayload)
         logger.debug("payload: ${payload.toHEX()}") // todo
-        val encoded = ByteArray(BytesUtil.readInt(payload, index = 0))
-        System.arraycopy(payload, 4, encoded, 0, encoded.size)
-        val requestTime = BytesUtil.readLong(payload, index = 4 + encoded.size).milliseconds
+        val requestEncoded = ByteArray(BytesUtil.readInt(payload, index = 0))
+        System.arraycopy(payload, 4, requestEncoded, 0, requestEncoded.size)
+        val requestTime = BytesUtil.readLong(payload, index = 4 + requestEncoded.size).milliseconds
         logger.debug("request time: ${Date(requestTime.inWholeMilliseconds)}") // todo
-        val requestID = BytesUtil.readUUID(payload, index = 4 + encoded.size + 8)
+        val requestID = BytesUtil.readUUID(payload, index = 4 + requestEncoded.size + 8)
         logger.debug("request ID: $requestID") // todo
         val keys = injection.locals.keys ?: TODO()
-        val spec = "double"
-        val encodedSpec = spec.toByteArray()
-        val methodCode = 1 // POST
-        val signatureData = ByteArray(payload.size + 4 + encodedSpec.size + secretKey.encoded.size)
+        val encodedSpec = request.query.toByteArray()
+        val methodCode: Byte = when (request.method) {
+            "POST" -> 1
+            else -> error("Method \"${request.method}\" is not supported!")
+        }
+        val signatureData = ByteArray(payload.size + 1 + encodedSpec.size + secretKey.encoded.size)
         System.arraycopy(payload, 0, signatureData, 0, payload.size)
-        BytesUtil.writeBytes(signatureData, index = payload.size, methodCode)
-        System.arraycopy(encodedSpec, 0, signatureData, payload.size + 4, encodedSpec.size)
-        System.arraycopy(secretKey.encoded, 0, signatureData, payload.size + 4 + encodedSpec.size, secretKey.encoded.size)
+        signatureData[payload.size] = methodCode
+        System.arraycopy(encodedSpec, 0, signatureData, payload.size + 1, encodedSpec.size)
+        System.arraycopy(secretKey.encoded, 0, signatureData, payload.size + 1 + encodedSpec.size, secretKey.encoded.size)
         logger.debug("signature data: ${signatureData.toHEX()}") // todo
+        logger.debug("signature data hash: ${injection.secrets.hash(signatureData)}") // todo
         val verified = injection.secrets.verify(keys.publicKey, signatureData, signature)
         if (!verified) {
             return HttpResponse(
@@ -174,12 +188,94 @@ internal class ReceiverRouting(
             injection.locals.requested = requested.filterValues { now - it > maxTime}
         }
         injection.locals.requested += requestID to requestTime
+        return onRequest(
+            requestEncoded,
+            secretKey,
+            privateKey,
+            encodedSpec,
+            methodCode,
+            requestID,
+        )
+    }
+
+    private fun onPostDouble(
+        requestEncoded: ByteArray,
+        secretKey: SecretKey,
+        privateKey: PrivateKey,
+        encodedSpec: ByteArray,
+        methodCode: Byte,
+        requestID: UUID,
+    ): HttpResponse {
+        val number = BytesUtil.readInt(requestEncoded, index = 0)
+        if (number !in 1..1024) {
+            return HttpResponse(
+                version = "1.1",
+                code = 500,
+                message = "Internal Server Error",
+                headers = emptyMap(),
+                body = "todo".toByteArray(),
+            )
+        }
+        val responseTime = System.currentTimeMillis().milliseconds
+        logger.debug("response time: ${Date(responseTime.inWholeMilliseconds)}") // todo
+        val responseEncoded = ByteArray(4)
+        logger.debug("response encoded: ${responseEncoded.toHEX()}") // todo
+        val responseDecoded = number * 2
+        logger.debug("response decoded: $responseDecoded") // todo
+        BytesUtil.writeBytes(responseEncoded, index = 0, responseDecoded)
+        val payload = ByteArray(4 + responseEncoded.size + 8)
+        BytesUtil.writeBytes(payload, index = 0, responseEncoded.size)
+        System.arraycopy(responseEncoded, 0, payload, 4, responseEncoded.size)
+        BytesUtil.writeBytes(payload, index = 4 + responseEncoded.size, responseTime.inWholeMilliseconds)
+        logger.debug("response payload: ${payload.toHEX()}") // todo
+        val encryptedPayload = injection.secrets.encrypt(secretKey, payload)
+        logger.debug("response encrypted payload: ${encryptedPayload.toHEX()}") // todo
+        val signatureData = ByteArray(payload.size + 16 + 1 + encodedSpec.size)
+        System.arraycopy(payload, 0, signatureData, 0, payload.size)
+        BytesUtil.writeBytes(signatureData, index = payload.size, requestID)
+        signatureData[payload.size + 16] = methodCode
+        System.arraycopy(encodedSpec, 0, signatureData, payload.size + 16 + 1, encodedSpec.size)
+        logger.debug("response signature data: ${signatureData.toHEX()}") // todo
+        logger.debug("response signature data hash: ${injection.secrets.hash(signatureData)}") // todo
+        val signature = injection.secrets.sign(privateKey, signatureData)
+        logger.debug("response signature: ${signature.toHEX()}") // todo
+        logger.debug("response signature hash: ${injection.secrets.hash(signature)}") // todo
+        val responseBody = ByteArray(4 + encryptedPayload.size + 4 + signature.size)
+        BytesUtil.writeBytes(responseBody, index = 0, encryptedPayload.size)
+        System.arraycopy(encryptedPayload, 0, responseBody, 4, encryptedPayload.size)
+        BytesUtil.writeBytes(responseBody, index = 4 + encryptedPayload.size, signature.size)
+        System.arraycopy(signature, 0, responseBody, 4 + encryptedPayload.size + 4, signature.size)
+        logger.debug("response body: ${responseBody.toHEX()}") // todo
+        logger.debug("response body hash: ${injection.secrets.hash(responseBody)}") // todo
         return HttpResponse(
             version = "1.1",
-            code = 500,
-            message = "Internal Server Error",
+            code = 200,
+            message = "OK",
             headers = emptyMap(),
-            body = "todo".toByteArray(),
+            body = responseBody,
+        )
+    }
+
+    private fun onPostDouble(request: HttpRequest): HttpResponse {
+        logger.debug("on post double...")
+        return tls(
+            request = request,
+            onRequest = {
+                requestEncoded: ByteArray,
+                secretKey: SecretKey,
+                privateKey: PrivateKey,
+                encodedSpec: ByteArray,
+                methodCode: Byte,
+                requestID: UUID ->
+                onPostDouble(
+                    requestEncoded = requestEncoded,
+                    secretKey = secretKey,
+                    privateKey = privateKey,
+                    encodedSpec = encodedSpec,
+                    methodCode = methodCode,
+                    requestID = requestID,
+                )
+            },
         )
     }
 

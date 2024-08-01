@@ -59,7 +59,8 @@ internal fun EnterScreen(
             }
         }
         val state = logics.states.collectAsState().value
-        val pinState = remember { mutableStateOf("") }
+//        val pinState = remember { mutableStateOf("") }
+        val pinState = remember { mutableStateOf("0202") } // todo
         Box(
             modifier = Modifier
                 .fillMaxSize()

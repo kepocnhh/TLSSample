@@ -14,6 +14,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 
 internal class FinalRemotes(
     private val address: URL,
@@ -61,6 +62,49 @@ internal class FinalRemotes(
         }
     }
 
+    private fun onDouble(
+        secretKey: SecretKey,
+        publicKey: PublicKey,
+        responseBody: ByteArray,
+        encodedSpec: ByteArray,
+        methodCode: Byte,
+        requestID: UUID,
+    ): Int {
+        val tag = "[Remotes:onDouble]"
+        val encryptedPayload = ByteArray(BytesUtil.readInt(responseBody, index = 0))
+        System.arraycopy(responseBody, 4, encryptedPayload, 0, encryptedPayload.size)
+        println("$tag: response encrypted payload: ${encryptedPayload.toHEX()}") // todo
+        val payload = secrets.decrypt(secretKey, encryptedPayload)
+        println("$tag: response payload: ${payload.toHEX()}") // todo
+        val responseEncoded = ByteArray(BytesUtil.readInt(payload, index = 0))
+        System.arraycopy(payload, 4, responseEncoded, 0, responseEncoded.size)
+        println("$tag: response encoded: ${responseEncoded.toHEX()}") // todo
+        val responseTime = BytesUtil.readLong(payload, index = 4 + responseEncoded.size).milliseconds
+        println("$tag: response time: ${Date(responseTime.inWholeMilliseconds)}") // todo
+        val signature = ByteArray(BytesUtil.readInt(responseBody, index = 4 + encryptedPayload.size))
+        System.arraycopy(responseBody, 4 + encryptedPayload.size + 4, signature, 0, signature.size)
+        println("$tag: response signature: ${signature.toHEX()}") // todo
+        println("$tag: response signature hash: ${secrets.hash(signature)}") // todo
+        val signatureData = ByteArray(payload.size + 16 + 1 + encodedSpec.size)
+        System.arraycopy(payload, 0, signatureData, 0, payload.size)
+        BytesUtil.writeBytes(signatureData, index = payload.size, requestID)
+        signatureData[payload.size + 16] = methodCode
+        System.arraycopy(encodedSpec, 0, signatureData, payload.size + 16 + 1, encodedSpec.size)
+        println("$tag: response signature data: ${signatureData.toHEX()}") // todo
+        println("$tag: response signature data hash: ${secrets.hash(signatureData)}") // todo
+        val verified = secrets.verify(publicKey, signatureData, signature)
+        if (!verified) TODO("FinalRemotes:onDouble:!verified")
+        val now = System.currentTimeMillis().milliseconds
+        // todo now < requestTime
+        val maxTime = 1.minutes
+        if (now - responseTime > maxTime) {
+            TODO("FinalRemotes:onDouble:time")
+        }
+        val responseDecoded = BytesUtil.readInt(responseEncoded, index = 0)
+        println("$tag: response decoded: $responseDecoded") // todo
+        return responseDecoded
+    }
+
     override fun double(
         publicKey: PublicKey,
         privateKey: PrivateKey,
@@ -79,13 +123,10 @@ internal class FinalRemotes(
         BytesUtil.writeBytes(payload, index = 4 + encoded.size, requestTime.inWholeMilliseconds)
         BytesUtil.writeBytes(payload, index = 4 + encoded.size + 8, requestID)
         println("$tag: payload: ${payload.toHEX()}") // todo
-        val spec = "double"
+        val spec = "/double"
         println("$tag: spec: \"$spec\"") // todo
         val method = "POST"
-        val methodCode = when (method) {
-            "POST" -> 1
-            else -> error("Method \"$method\" is not supported!")
-        }
+        val methodCode: Byte = 1 // POST
         println("$tag: method: \"$method\"") // todo
         val secretKey = secrets.newSecretKey()
         println("$tag: secret key: ${secretKey.encoded.toHEX()}") // todo
@@ -94,12 +135,13 @@ internal class FinalRemotes(
         val encryptedPayload = secrets.encrypt(secretKey, payload)
         println("$tag: encrypted payload: ${encryptedPayload.toHEX()}") // todo
         val encodedSpec = spec.toByteArray()
-        val signatureData = ByteArray(payload.size + 4 + encodedSpec.size + secretKey.encoded.size)
+        val signatureData = ByteArray(payload.size + 1 + encodedSpec.size + secretKey.encoded.size)
         System.arraycopy(payload, 0, signatureData, 0, payload.size)
-        BytesUtil.writeBytes(signatureData, index = payload.size, methodCode)
-        System.arraycopy(encodedSpec, 0, signatureData, payload.size + 4, encodedSpec.size)
-        System.arraycopy(secretKey.encoded, 0, signatureData, payload.size + 4 + encodedSpec.size, secretKey.encoded.size)
+        signatureData[payload.size] = methodCode
+        System.arraycopy(encodedSpec, 0, signatureData, payload.size + 1, encodedSpec.size)
+        System.arraycopy(secretKey.encoded, 0, signatureData, payload.size + 1 + encodedSpec.size, secretKey.encoded.size)
         println("$tag: signature data: ${signatureData.toHEX()}") // todo
+        println("$tag: signature data hash: ${secrets.hash(signatureData)}") // todo
         val signature = secrets.sign(privateKey, signatureData)
         println("$tag: signature: ${signature.toHEX()}") // todo
         val requestBody = ByteArray(4 + encryptedSK.size + 4 + encryptedPayload.size + 4 + signature.size)
@@ -117,8 +159,17 @@ internal class FinalRemotes(
         ).execute().use { response ->
             when (response.code) {
                 200 -> {
-                    val responseBody = response.body ?: error("No body!")
-                    TODO("FinalRemotes:double($number)")
+                    val responseBody = response.body?.bytes() ?: error("No body!")
+                    println("$tag: response body: ${responseBody.toHEX()}") // todo
+                    println("$tag: response body hash: ${secrets.hash(responseBody)}") // todo
+                    onDouble(
+                        secretKey = secretKey,
+                        publicKey = publicKey,
+                        responseBody = responseBody,
+                        encodedSpec = encodedSpec,
+                        methodCode = methodCode,
+                        requestID = requestID,
+                    )
                 }
                 else -> error("Unknown code: ${response.code}!")
             }

@@ -70,6 +70,7 @@ internal class TransmitterLogics(
             val keys = injection.locals.keys ?: TODO()
             val privateKey = injection.sessions.privateKey ?: TODO()
             runCatching {
+                // todo save address
                 injection.remotes(address).double(
                     privateKey = privateKey,
                     publicKey = keys.publicKey,
