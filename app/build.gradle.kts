@@ -23,7 +23,7 @@ android {
         applicationId = namespace
         minSdk = Version.Android.minSdk
         targetSdk = Version.Android.targetSdk
-        versionCode = 3
+        versionCode = 4
         versionName = "0.0.$versionCode"
     }
 
