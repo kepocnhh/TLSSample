@@ -64,6 +64,30 @@ internal class TransmitterLogics(
         )
     }
 
+    private suspend fun double(address: URL, message: String) {
+        logger.debug("double: $address\nmessage: $message")
+        withContext(injection.contexts.default) {
+            val keys = injection.locals.keys ?: TODO()
+            val privateKey = injection.sessions.privateKey ?: TODO()
+            runCatching {
+                injection.remotes(address).double(
+                    privateKey = privateKey,
+                    publicKey = keys.publicKey,
+                    number = message.toInt(),
+                )
+            }
+        }.fold(
+            onSuccess = { number ->
+                logger.debug("$message * 2 = $number")
+                _events.emit(Event.OnSync(Result.success("$message * 2 = $number")))
+            },
+            onFailure = { error ->
+                logger.warning("sync error: $error")
+                _events.emit(Event.OnSync(Result.failure(error)))
+            },
+        )
+    }
+
     fun sync(
         spec: String,
         message: String,
@@ -83,7 +107,7 @@ internal class TransmitterLogics(
             }
         }.fold(
             onSuccess = { address ->
-                sync(address = address, message = message)
+                double(address = address, message = message)
             },
             onFailure = { error ->
                 logger.warning("url parse error: $error")

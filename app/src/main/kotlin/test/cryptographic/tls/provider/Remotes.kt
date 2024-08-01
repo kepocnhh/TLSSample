@@ -11,11 +11,18 @@ internal interface Remotes {
         publicKey: PublicKey,
         privateKey: PrivateKey,
     ): SessionStartResponse
+
     fun double(
         secretKey: SecretKey,
         privateKey: PrivateKey,
         publicKey: PublicKey,
         sessionId: UUID,
+        number: Int,
+    ): Int
+
+    fun double(
+        publicKey: PublicKey,
+        privateKey: PrivateKey,
         number: Int,
     ): Int
 }
