@@ -75,11 +75,11 @@ internal class FinalSecrets : Secrets {
         return signature.sign()
     }
 
-    override fun verify(publicKey: PublicKey, message: ByteArray, sig: ByteArray) {
+    override fun verify(publicKey: PublicKey, message: ByteArray, sig: ByteArray): Boolean {
         val signature = Signature.getInstance("SHA256withRSA")
         signature.initVerify(publicKey)
         signature.update(message)
-        check(signature.verify(sig)) { "Verify error!" }
+        return signature.verify(sig)
     }
 
     override fun hash(bytes: ByteArray): String {

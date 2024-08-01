@@ -11,6 +11,13 @@ internal object BytesUtil {
         bytes[index + 3] = value.toByte()
     }
 
+    fun readInt(bytes: ByteArray, index: Int): Int {
+        return bytes[index].toInt().and(0xff).shl(8 * 3)
+            .or(bytes[index + 1].toInt().and(0xff).shl(8 * 2))
+            .or(bytes[index + 2].toInt().and(0xff).shl(8 * 1))
+            .or(bytes[index + 3].toInt().and(0xff))
+    }
+
     fun writeBytes(bytes: ByteArray, index: Int, value: Long) {
         bytes[index] = value.shr(8 * 7).toByte()
         bytes[index + 1] = value.shr(8 * 6).toByte()
@@ -22,9 +29,24 @@ internal object BytesUtil {
         bytes[index + 7] = value.toByte()
     }
 
+    fun readLong(bytes: ByteArray, index: Int): Long {
+        return bytes[index].toLong().and(0xff).shl(8 * 7)
+            .or(bytes[index + 1].toLong().and(0xff).shl(8 * 6))
+            .or(bytes[index + 2].toLong().and(0xff).shl(8 * 5))
+            .or(bytes[index + 3].toLong().and(0xff).shl(8 * 4))
+            .or(bytes[index + 4].toLong().and(0xff).shl(8 * 3))
+            .or(bytes[index + 5].toLong().and(0xff).shl(8 * 2))
+            .or(bytes[index + 6].toLong().and(0xff).shl(8 * 1))
+            .or(bytes[index + 7].toLong().and(0xff))
+    }
+
     fun writeBytes(bytes: ByteArray, index: Int, value: UUID) {
         writeBytes(bytes, index = index, value.mostSignificantBits)
         writeBytes(bytes, index = index + 8, value.leastSignificantBits)
+    }
+
+    fun readUUID(bytes: ByteArray, index: Int): UUID {
+        return UUID(readLong(bytes = bytes, index = index), readLong(bytes = bytes, index = index + 8))
     }
 }
 

@@ -13,6 +13,7 @@ import java.util.Date
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class FinalRemotes(
     private val address: URL,
@@ -66,17 +67,17 @@ internal class FinalRemotes(
         number: Int,
     ): Int {
         val tag = "[Remotes]"
-        val time = System.currentTimeMillis()
-        println("$tag: time: ${Date(time)}") // todo
+        val requestTime = System.currentTimeMillis().milliseconds
+        println("$tag: request time: ${Date(requestTime.inWholeMilliseconds)}") // todo
         val requestID = UUID.randomUUID()
         println("$tag: request ID: $requestID") // todo
         val encoded = ByteArray(4)
         BytesUtil.writeBytes(encoded, index = 0, number)
-        val payload = ByteArray(8 + 4 + encoded.size + 16)
-        BytesUtil.writeBytes(payload, index = 0, time)
-        BytesUtil.writeBytes(payload, index = 8, encoded.size)
-        System.arraycopy(encoded, 0, payload, 8 + 4, encoded.size)
-        BytesUtil.writeBytes(payload, index = 8 + 4 + encoded.size, requestID)
+        val payload = ByteArray(4 + encoded.size + 8 + 16)
+        BytesUtil.writeBytes(payload, index = 0, encoded.size)
+        System.arraycopy(encoded, 0, payload, 4, encoded.size)
+        BytesUtil.writeBytes(payload, index = 4 + encoded.size, requestTime.inWholeMilliseconds)
+        BytesUtil.writeBytes(payload, index = 4 + encoded.size + 8, requestID)
         println("$tag: payload: ${payload.toHEX()}") // todo
         val spec = "double"
         println("$tag: spec: \"$spec\"") // todo
@@ -93,14 +94,12 @@ internal class FinalRemotes(
         val encryptedPayload = secrets.encrypt(secretKey, payload)
         println("$tag: encrypted payload: ${encryptedPayload.toHEX()}") // todo
         val encodedSpec = spec.toByteArray()
-        val signatureData = ByteArray(4 + payload.size + 4 + 4 + encodedSpec.size + 4 + secretKey.encoded.size)
-        BytesUtil.writeBytes(signatureData, index = 0, payload.size)
-        System.arraycopy(payload, 0, signatureData, 4, payload.size)
-        BytesUtil.writeBytes(signatureData, index = 4 + payload.size, methodCode)
-        BytesUtil.writeBytes(signatureData, index = 4 + payload.size + 4, encodedSpec.size)
-        System.arraycopy(encodedSpec, 0, signatureData, 4 + payload.size + 4 + 4, encodedSpec.size)
-        BytesUtil.writeBytes(signatureData, index = 4 + payload.size + 4 + 4 + encodedSpec.size, secretKey.encoded.size)
-        System.arraycopy(secretKey.encoded, 0, signatureData, 4 + payload.size + 4 + 4 + encodedSpec.size + 4, secretKey.encoded.size)
+        val signatureData = ByteArray(payload.size + 4 + encodedSpec.size + secretKey.encoded.size)
+        System.arraycopy(payload, 0, signatureData, 0, payload.size)
+        BytesUtil.writeBytes(signatureData, index = payload.size, methodCode)
+        System.arraycopy(encodedSpec, 0, signatureData, payload.size + 4, encodedSpec.size)
+        System.arraycopy(secretKey.encoded, 0, signatureData, payload.size + 4 + encodedSpec.size, secretKey.encoded.size)
+        println("$tag: signature data: ${signatureData.toHEX()}") // todo
         val signature = secrets.sign(privateKey, signatureData)
         println("$tag: signature: ${signature.toHEX()}") // todo
         val requestBody = ByteArray(4 + encryptedSK.size + 4 + encryptedPayload.size + 4 + signature.size)

@@ -4,6 +4,9 @@ import android.content.Context
 import test.cryptographic.tls.BuildConfig
 import test.cryptographic.tls.entity.Keys
 import java.net.URL
+import java.util.UUID
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class FinalLocals(
     context: Context,
@@ -44,6 +47,22 @@ internal class FinalLocals(
                 prefs.edit().remove("keys").commit()
             } else {
                 prefs.edit().putString("keys", String(serializer.keys.encode(value))).commit()
+            }
+        }
+
+    override var requested: Map<UUID, Duration>
+        get() {
+            return prefs.getStringSet("requested", null)?.associate {
+                val split = it.split(",")
+                check(split.size == 2)
+                UUID.fromString(split[0]) to split[1].toLong().milliseconds
+            }.orEmpty()
+        }
+        set(value) {
+            if (value.isEmpty()) {
+                prefs.edit().remove("requested").commit()
+            } else {
+                prefs.edit().putStringSet("requested", value.map { (id, time) -> "$id,${time.inWholeMilliseconds}" }.toSet()).commit()
             }
         }
 
