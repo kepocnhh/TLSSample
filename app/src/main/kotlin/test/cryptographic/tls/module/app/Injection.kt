@@ -1,5 +1,6 @@
 package test.cryptographic.tls.module.app
 
+import sp.kx.http.TLSEnvironment
 import test.cryptographic.tls.provider.Assets
 import test.cryptographic.tls.provider.Contexts
 import test.cryptographic.tls.provider.Locals
@@ -19,4 +20,5 @@ internal class Injection(
     val sessions: Sessions, // todo
     val assets: Assets,
     val secrets: Secrets,
+    val tls: TLSEnvironment,
 )

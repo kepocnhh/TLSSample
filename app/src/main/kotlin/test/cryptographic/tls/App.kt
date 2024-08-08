@@ -19,6 +19,7 @@ import test.cryptographic.tls.provider.FinalLoggers
 import test.cryptographic.tls.provider.FinalRemotes
 import test.cryptographic.tls.provider.FinalSecrets
 import test.cryptographic.tls.provider.FinalSerializer
+import test.cryptographic.tls.provider.FinalTLSEnvironment
 import test.cryptographic.tls.provider.Secrets
 import test.cryptographic.tls.provider.Serializer
 import test.cryptographic.tls.provider.Sessions
@@ -28,6 +29,7 @@ internal class App : Application() {
         super.onCreate()
         val secrets: Secrets = FinalSecrets()
         val serializer: Serializer = FinalSerializer(secrets)
+        val tls = FinalTLSEnvironment(secrets = secrets)
         _injection = Injection(
             contexts = Contexts(
                 main = Dispatchers.Main,
@@ -41,14 +43,14 @@ internal class App : Application() {
             remotes = { address ->
                 FinalRemotes(
                     address = address,
-                    serializer = serializer,
-                    secrets = secrets,
+                    tls = tls,
                 )
             },
             serializer = serializer,
             sessions = Sessions(),
             assets = FinalAssets(this),
             secrets = secrets,
+            tls = tls,
         )
     }
 
