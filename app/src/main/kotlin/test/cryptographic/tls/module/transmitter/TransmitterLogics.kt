@@ -32,15 +32,9 @@ internal class TransmitterLogics(
     private suspend fun double(address: URL, message: String) {
         logger.debug("double: $address\nmessage: $message")
         withContext(injection.contexts.default) {
-            val keys = injection.locals.keys ?: TODO()
-            val privateKey = injection.sessions.privateKey ?: TODO()
             runCatching {
                 // todo save address
-                injection.remotes(address).double(
-                    privateKey = privateKey,
-                    publicKey = keys.publicKey,
-                    number = message.toInt(),
-                )
+                injection.remotes(address).double(number = message.toInt())
             }
         }.fold(
             onSuccess = { number ->

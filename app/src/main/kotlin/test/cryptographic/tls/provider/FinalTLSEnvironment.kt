@@ -1,6 +1,7 @@
 package test.cryptographic.tls.provider
 
 import sp.kx.http.TLSEnvironment
+import java.security.KeyPair
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.util.UUID
@@ -10,9 +11,19 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 internal class FinalTLSEnvironment(
+    private val locals: Locals,
+    private val sessions: Sessions,
     private val secrets: Secrets,
 ) : TLSEnvironment {
     override val timeMax = 1.minutes
+
+    override val keyPair: KeyPair get() {
+        val keys = locals.keys ?: error("No keys!")
+        return KeyPair(
+            keys.publicKey,
+            sessions.privateKey ?: error("No private key!"),
+        )
+    }
 
     override fun decrypt(key: PrivateKey, encrypted: ByteArray): ByteArray {
         return secrets.decrypt(key, encrypted)

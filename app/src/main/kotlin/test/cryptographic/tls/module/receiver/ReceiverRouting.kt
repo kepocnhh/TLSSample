@@ -1,5 +1,7 @@
 package test.cryptographic.tls.module.receiver
 
+import sp.kx.bytes.readInt
+import sp.kx.bytes.write
 import sp.kx.http.HttpRequest
 import sp.kx.http.HttpResponse
 import sp.kx.http.HttpRouting
@@ -31,18 +33,7 @@ internal class ReceiverRouting(
         "/double" to mapOf(
             "POST" to ::onPostDouble,
         ),
-        "/session/start" to mapOf(
-            "POST" to ::onPostSessionStart,
-        ),
     )
-
-    override val keyPair: KeyPair get() {
-        val keys = injection.locals.keys ?: error("No keys!")
-        return KeyPair(
-            keys.publicKey,
-            injection.sessions.privateKey ?: error("No private key!"),
-        )
-    }
 
     override var requested: Map<UUID, Duration>
         get() {
@@ -52,66 +43,17 @@ internal class ReceiverRouting(
             injection.locals.requested = value
         }
 
-    private fun onPostSessionStart(request: HttpRequest): HttpResponse {
-        logger.debug("on post session start...")
-        val oldConnection = injection.sessions.secureConnection
-        val now = System.currentTimeMillis().milliseconds
-        if (oldConnection != null) {
-            if (oldConnection.expires > now) {
-                return HttpResponse(
-                    version = "1.1",
-                    code = 500,
-                    message = "Internal Server Error",
-                    headers = emptyMap(),
-                    body = "todo".toByteArray(),
-                )
-            }
-            injection.sessions.secureConnection = null
-        }
-        val body = request.body ?: return HttpResponse(
-            version = "1.1",
-            code = 500,
-            message = "Internal Server Error",
-            headers = emptyMap(),
-            body = "todo".toByteArray(),
-        )
-        val keys = injection.locals.keys ?: TODO()
-        val publicKey = injection.secrets.toPublicKey(body)
-        logger.debug("public:key:transmitter: ${injection.secrets.hash(publicKey.encoded)}")
-        val sessionId = UUID.randomUUID()
-        val secretKey = injection.secrets.newSecretKey()
-        logger.debug("secret:key: ${injection.secrets.hash(secretKey.encoded)}")
-        injection.sessions.secureConnection = SecureConnection(
-            sessionId = sessionId,
-            expires = now + 1.minutes,
-            secretKey = secretKey,
-            publicKey = publicKey,
-        )
-        logger.debug("session:expires: ${Date(injection.sessions.secureConnection!!.expires.inWholeMilliseconds)}") // todo
-        logger.debug("session:ID: $sessionId")
-        val payload = sessionId.toString().toByteArray()
-        logger.debug("payload: ${injection.secrets.hash(payload)}")
-        val privateKey = injection.sessions.privateKey ?: TODO()
-        val list = listOf(
-            injection.secrets.base64(keys.publicKey.encoded),
-            injection.secrets.base64(injection.secrets.encrypt(publicKey, secretKey.encoded)),
-            injection.secrets.base64(injection.secrets.encrypt(secretKey, payload)),
-            injection.secrets.base64(injection.secrets.sign(privateKey, payload)),
-        )
-        return HttpResponse(
-            version = "1.1",
-            code = 200,
-            message = "OK",
-            headers = emptyMap(),
-            body = list.joinToString(separator = "\n").toByteArray(),
-        )
-    }
-
     private fun onPostDouble(request: HttpRequest): HttpResponse {
         logger.debug("on post double...")
         return map(
             request = request,
-            transform = TLSResponse::OK,
+            transform = {
+                val number = it.readInt()
+                check(number in 1..1024)
+                val bytes = ByteArray(4)
+                bytes.write(value = number * 2)
+                TLSResponse.OK(encoded = bytes)
+            },
         )
     }
 

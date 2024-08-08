@@ -29,17 +29,23 @@ internal class App : Application() {
         super.onCreate()
         val secrets: Secrets = FinalSecrets()
         val serializer: Serializer = FinalSerializer(secrets)
-        val tls = FinalTLSEnvironment(secrets = secrets)
+        val locals = FinalLocals(
+            context = this,
+            serializer = serializer,
+        )
+        val sessions = Sessions()
+        val tls = FinalTLSEnvironment(
+            locals = locals,
+            sessions = sessions,
+            secrets = secrets,
+        )
         _injection = Injection(
             contexts = Contexts(
                 main = Dispatchers.Main,
                 default = Dispatchers.Default,
             ),
             loggers = FinalLoggers(),
-            locals = FinalLocals(
-                context = this,
-                serializer = serializer,
-            ),
+            locals = locals,
             remotes = { address ->
                 FinalRemotes(
                     address = address,
@@ -47,7 +53,7 @@ internal class App : Application() {
                 )
             },
             serializer = serializer,
-            sessions = Sessions(),
+            sessions = sessions,
             assets = FinalAssets(this),
             secrets = secrets,
             tls = tls,
